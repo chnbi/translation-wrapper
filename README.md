@@ -123,12 +123,3 @@ npm run lint
 ## Deployment
 
 See [Deployment Guide](./docs/DEPLOYMENT.md) for production deployment instructions.
-
-## License
-
-Internal use only - YTL Communications Sdn. Bhd.
-
-## Contact
-
-Developer: Chin Wey Xuan
-Email: weyxuan.chin@ytlcomms.my
