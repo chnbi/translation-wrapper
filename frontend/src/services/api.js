@@ -1,68 +1,162 @@
-import axios from 'axios';
+import { supabase } from '../supabaseClient';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json'
+// --- Helper for custom backend calls ---
+const fetchApi = async (url, options = {}) => {
+  const response = await fetch(`${API_URL}${url}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Network response was not ok' }));
+    throw new Error(errorData.error || 'API request failed');
   }
-});
+  return response.json();
+};
 
-// Projects
+
+// --- Projects ---
 export const projectAPI = {
-  getAll: () => api.get('/projects'),
-  getById: (id) => api.get(`/projects/${id}`),
-  create: (data) => api.post('/projects', data),
-  update: (id, data) => api.put(`/projects/${id}`, data),
-  delete: (id) => api.delete(`/projects/${id}`),
-  getStats: (id) => api.get(`/projects/${id}/stats`)
+  getAll: async () => {
+    const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return { data }; // Mimic axios response structure
+  },
+  getById: async (id) => {
+    const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  create: async (projectData) => {
+    const { data, error } = await supabase.from('projects').insert(projectData).select().single();
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  update: async (id, updateData) => {
+    const { data, error } = await supabase.from('projects').update(updateData).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    return { data: { message: 'Project deleted' } };
+  },
+  getStats: (id) => fetchApi(`/projects/${id}/stats`),
 };
 
-// Translations
+
+// --- Translations ---
 export const translationAPI = {
-  getByProject: (projectId, params) => api.get(`/translations/project/${projectId}`, { params }),
-  getById: (id) => api.get(`/translations/${id}`),
-  create: (data) => api.post('/translations', data),
-  update: (id, data) => api.put(`/translations/${id}`, data),
-  delete: (id) => api.delete(`/translations/${id}`),
-  translate: (id, data) => api.post(`/translations/${id}/translate`, data),
-  batchTranslate: (projectId, data) => api.post(`/translations/project/${projectId}/batch-translate`, data),
-  approve: (id, reviewer) => api.post(`/translations/${id}/approve`, { reviewer }),
-  reject: (id, notes) => api.post(`/translations/${id}/reject`, { notes }),
-  bulkApprove: (translationIds, reviewer) => api.post('/translations/bulk/approve', { translationIds, reviewer }),
-  bulkReject: (translationIds, notes) => api.post('/translations/bulk/reject', { translationIds, notes })
+  getByProject: async (projectId, params) => {
+    let query = supabase.from('translations').select('*').eq('project_id', projectId);
+    if (params?.status) query = query.eq('status', params.status);
+    if (params?.page) query = query.eq('page', params.page);
+    const { data, error } = await query.order('created_at');
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  update: async (id, updateData) => {
+    // This is a manual content update, so we use the dedicated backend route
+    return fetchApi(`/translations/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+    });
+  },
+  generate: (id, { targetLang, glossaryVersion }) => fetchApi(`/translations/${id}/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ targetLang, glossaryVersion }),
+  }),
+  approve: (id, reviewer) => fetchApi(`/translations/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer }),
+  }),
+  reject: (id, notes) => fetchApi(`/translations/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  }),
+  bulkApprove: (translationIds, reviewer) => fetchApi('/translations/bulk/approve', {
+    method: 'POST',
+    body: JSON.stringify({ translationIds, reviewer }),
+  }),
+  bulkReject: (translationIds, notes) => fetchApi('/translations/bulk/reject', {
+    method: 'POST',
+    body: JSON.stringify({ translationIds, notes }),
+  }),
 };
 
-// Upload
+
+// --- Upload ---
 export const uploadAPI = {
-  uploadImage: (formData) => api.post('/upload/image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+  // Step 1: Upload the file to Supabase Storage
+  uploadFile: async (file, projectId) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${projectId}/${fileName}`;
+    
+    const { error } = await supabase.storage
+      .from('project_images')
+      .upload(filePath, file);
+
+    if (error) {
+      throw new Error(`Storage upload failed: ${error.message}`);
+    }
+    return { storagePath: filePath };
+  },
+  // Step 2: Tell our backend to process the file from storage
+  processStorageImage: (payload) => fetchApi('/upload/process-storage-image', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   }),
-  uploadImages: (formData) => api.post('/upload/images', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  uploadBase64: (data) => api.post('/upload/base64', data)
 };
 
-// Glossary
+
+// --- Glossary ---
 export const glossaryAPI = {
-  getAll: (params) => api.get('/glossary', { params }),
-  getById: (id) => api.get(`/glossary/${id}`),
-  create: (data) => api.post('/glossary', data),
-  update: (id, data) => api.put(`/glossary/${id}`, data),
-  delete: (id) => api.delete(`/glossary/${id}`),
-  bulkImport: (data) => api.post('/glossary/bulk-import', data),
-  getVersions: () => api.get('/glossary/versions'),
-  getCategories: () => api.get('/glossary/categories')
+  getAll: async (params) => {
+    let query = supabase.from('glossary').select('*');
+    if (params?.version) query = query.eq('version', params.version);
+    if (params?.category) query = query.eq('category', params.category);
+    if (params?.active !== undefined) query = query.eq('is_active', params.active);
+    const { data, error } = await query.order('en');
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  create: async (termData) => {
+    const { data, error } = await supabase.from('glossary').insert(termData).select().single();
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  update: async (id, updateData) => {
+    const { data, error } = await supabase.from('glossary').update(updateData).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return { data };
+  },
+  delete: async (id) => {
+    const { error } = await supabase.from('glossary').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    return { data: { message: 'Glossary term deleted' } };
+  },
+  bulkImport: (data) => fetchApi('/glossary/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getVersions: () => fetchApi('/glossary/versions'),
+  getCategories: () => fetchApi('/glossary/categories'),
 };
 
-// Export
+
+// --- Export ---
 export const exportAPI = {
-  exportExcel: (projectId) => api.post(`/export/project/${projectId}/excel`),
-  exportJSON: (projectId) => api.post(`/export/project/${projectId}/json`),
-  exportPackage: (projectId, options) => api.post(`/export/project/${projectId}/package`, options),
-  getDownloadUrl: (filename) => `${API_URL}/export/download/${filename}`
+  exportExcel: (projectId) => fetchApi(`/export/project/${projectId}/excel`, { method: 'POST' }),
+  exportJSON: (projectId) => fetchApi(`/export/project/${projectId}/json`, { method: 'POST' }),
+  exportPackage: (projectId, options) => fetchApi(`/export/project/${projectId}/package`, {
+    method: 'POST',
+    body: JSON.stringify(options),
+  }),
+  getDownloadUrl: (filename) => `${API_URL}/export/download/${filename}`,
 };
-
-export default api;

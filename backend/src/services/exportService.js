@@ -2,28 +2,33 @@ const ExcelJS = require('exceljs');
 const path = require('path');
 const fs = require('fs').promises;
 const archiver = require('archiver');
-const Project = require('../models/Project');
-const Translation = require('../models/Translation');
-const Glossary = require('../models/Glossary');
+const supabase = require('../config/supabaseClient');
 
 class ExportService {
   async generateExcelExport(projectId) {
     try {
-      // Fetch project and translations
-      const project = await Project.findById(projectId);
-      if (!project) {
-        throw new Error('Project not found');
-      }
+      // Fetch project and translations from Supabase
+      const { data: project, error: projectError } = await supabase.from('projects').select('*').eq('id', projectId).single();
+      if (projectError || !project) throw new Error(projectError?.message || 'Project not found');
 
-      const translations = await Translation.find({
-        projectId,
-        status: 'approved'
-      }).sort({ page: 1, section: 1 });
+      const { data: translations, error: translationsError } = await supabase
+        .from('translations')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('status', 'approved')
+        .order('page')
+        .order('section');
+      if (translationsError) throw new Error(translationsError.message);
 
-      const glossary = await Glossary.find({
-        version: project.glossaryVersion,
-        isActive: true
-      }).sort({ category: 1, en: 1 });
+      // Fetch all active glossary terms.
+      // In a future version, projects could be linked to a specific glossary version.
+      const { data: glossary, error: glossaryError } = await supabase
+        .from('glossary')
+        .select('*')
+        .eq('is_active', true)
+        .order('category')
+        .order('en');
+      if (glossaryError) throw new Error(glossaryError.message);
 
       // Create workbook
       const workbook = new ExcelJS.Workbook();
@@ -92,16 +97,16 @@ class ExportService {
     // Add data rows
     translations.forEach((item, index) => {
       const row = sheet.addRow({
-        id: item._id.toString().substring(0, 8),
+        id: item.id.toString(),
         page: item.page,
         section: item.section,
-        elementType: item.elementType,
-        elementName: item.elementName || '-',
-        en: item.content.en,
-        bm: item.content.bm,
-        zh: item.content.zh,
+        elementType: item.element_type,
+        elementName: item.element_name || '-',
+        en: item.content_en,
+        bm: item.content_bm,
+        zh: item.content_zh,
         status: item.status,
-        notes: item.notes || (item.glossaryTerms?.length > 0 ? `Glossary: ${item.glossaryTerms.join(', ')}` : '')
+        notes: item.notes || (item.glossary_terms?.length > 0 ? `Glossary: ${item.glossary_terms.join(', ')}` : '')
       });
 
       // Alternate row colors
@@ -150,17 +155,13 @@ class ExportService {
 
     sheet.getRow(1).font = { bold: true };
 
-    const approvedCount = translations.filter(t => t.status === 'approved').length;
-
     sheet.addRows([
       { property: 'Export Date', value: new Date().toISOString() },
       { property: 'Project Name', value: project.name },
       { property: 'Project Description', value: project.description || 'N/A' },
-      { property: 'Created By', value: project.createdBy },
-      { property: 'Total Items', value: translations.length },
-      { property: 'Approved Items', value: approvedCount },
-      { property: 'Languages', value: 'EN → BM, ZH' },
-      { property: 'Glossary Version', value: project.glossaryVersion }
+      { property: 'Total Items in Export', value: translations.length },
+      { property: 'Project Status', value: project.status },
+      { property: 'Languages', value: 'EN → BM, ZH' }
     ]);
 
     // Style
@@ -195,11 +196,11 @@ class ExportService {
         bm: term.bm,
         zh: term.zh,
         category: term.category,
-        notes: term.doNotTranslate ? 'DO NOT TRANSLATE - Keep as-is' : (term.notes || '')
+        notes: term.do_not_translate ? 'DO NOT TRANSLATE - Keep as-is' : (term.notes || '')
       });
 
       // Highlight do-not-translate terms
-      if (term.doNotTranslate) {
+      if (term.do_not_translate) {
         row.eachCell(cell => {
           cell.fill = {
             type: 'pattern',
@@ -272,50 +273,54 @@ Contact: weyxuan.chin@ytlcomms.my
 
   async generateJSONExport(projectId) {
     try {
-      const project = await Project.findById(projectId);
-      if (!project) {
-        throw new Error('Project not found');
-      }
-
-      const translations = await Translation.find({
-        projectId,
-        status: 'approved'
-      });
-
-      const glossary = await Glossary.find({
-        version: project.glossaryVersion,
-        isActive: true
-      });
+        const { data: project, error: projectError } = await supabase.from('projects').select('*').eq('id', projectId).single();
+        if (projectError || !project) throw new Error(projectError?.message || 'Project not found');
+  
+        const { data: translations, error: translationsError } = await supabase
+          .from('translations')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('status', 'approved');
+        if (translationsError) throw new Error(translationsError.message);
+  
+        const { data: glossary, error: glossaryError } = await supabase
+          .from('glossary')
+          .select('*')
+          .eq('is_active', true);
+        if (glossaryError) throw new Error(glossaryError.message);
 
       const jsonData = {
         metadata: {
           exportDate: new Date().toISOString(),
-          projectId: project._id,
+          projectId: project.id,
           projectName: project.name,
           description: project.description,
-          createdBy: project.createdBy,
-          glossaryVersion: project.glossaryVersion,
+          status: project.status,
           languages: ['en', 'bm', 'zh']
         },
         translations: translations.map(t => ({
-          id: t._id,
+          id: t.id,
           page: t.page,
           section: t.section,
-          elementType: t.elementType,
-          elementName: t.elementName,
-          content: t.content,
+          elementType: t.element_type,
+          elementName: t.element_name,
+          content: {
+            en: t.content_en,
+            bm: t.content_bm,
+            zh: t.content_zh,
+          },
           status: t.status,
-          glossaryTerms: t.glossaryTerms,
-          sourceType: t.sourceType,
+          glossaryTerms: t.glossary_terms,
+          sourceType: t.source_type,
           reviewer: t.reviewer,
-          reviewedAt: t.reviewedAt
+          reviewedAt: t.reviewed_at
         })),
         glossary: glossary.map(g => ({
           en: g.en,
           bm: g.bm,
           zh: g.zh,
           category: g.category,
-          doNotTranslate: g.doNotTranslate,
+          doNotTranslate: g.do_not_translate,
           notes: g.notes
         }))
       };
@@ -353,7 +358,9 @@ Contact: weyxuan.chin@ytlcomms.my
 
       // Create ZIP package
       if (options.createZip) {
-        const project = await Project.findById(projectId);
+        const { data: project, error: projectError } = await supabase.from('projects').select('name').eq('id', projectId).single();
+        if (projectError || !project) throw new Error(projectError?.message || 'Project not found for ZIP naming');
+
         const zipFilename = `export_package_${project.name.replace(/\s+/g, '_')}_${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), 'exports', zipFilename);
 

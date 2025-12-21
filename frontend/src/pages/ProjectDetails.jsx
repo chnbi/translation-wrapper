@@ -20,63 +20,71 @@ export default function ProjectDetails() {
 
   const { data: project } = useQuery({
     queryKey: ['project', projectId],
-    queryFn: async () => {
-      const response = await projectAPI.getById(projectId);
-      return response.data.data;
-    }
+    queryFn: () => projectAPI.getById(projectId).then(res => res.data),
   });
 
   const { data: translations } = useQuery({
     queryKey: ['translations', projectId],
-    queryFn: async () => {
-      const response = await translationAPI.getByProject(projectId);
-      return response.data.data;
-    }
+    queryFn: () => translationAPI.getByProject(projectId).then(res => res.data),
   });
 
   const { data: stats } = useQuery({
     queryKey: ['stats', projectId],
-    queryFn: async () => {
-      const response = await projectAPI.getStats(projectId);
-      return response.data.data;
-    }
+    queryFn: () => projectAPI.getStats(projectId).then(res => res.data.data),
   });
 
   const createTextMutation = useMutation({
     mutationFn: (data) => translationAPI.create(data),
     onSuccess: (response) => {
-      queryClient.invalidateQueries(['translations', projectId]);
-      queryClient.invalidateQueries(['stats', projectId]);
+      queryClient.invalidateQueries({ queryKey: ['translations', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['stats', projectId] });
       const message = response.data.message || 'Content added successfully';
       toast.success(message);
       setShowAddText(false);
       setNewText({ page: '', section: '', elementType: 'heading', content: '' });
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to add content');
+      toast.error(error.message || 'Failed to add content');
     }
   });
 
-  const uploadImageMutation = useMutation({
-    mutationFn: (formData) => uploadAPI.uploadImage(formData),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries(['translations', projectId]);
-      queryClient.invalidateQueries(['stats', projectId]);
-      toast.success(`Image processed! Extracted: "${response.data.data.ocr.text.substring(0, 50)}..."`);
+  const processImageMutation = useMutation({
+    mutationFn: async (file) => {
+      // Step 1: Upload file to Supabase Storage
+      toast.loading(`Uploading ${file.name}...`, { id: file.name });
+      const { storagePath } = await uploadAPI.uploadFile(file, projectId);
+      
+      // Step 2: Call backend to process the image from storage
+      toast.loading(`Processing ${file.name}...`, { id: file.name });
+      const payload = {
+        projectId,
+        page: newText.page,
+        section: newText.section,
+        elementType: 'other',
+        elementName: file.name,
+        storagePath,
+      };
+      return uploadAPI.processStorageImage(payload);
     },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to process image');
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['translations', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['stats', projectId] });
+      const fileName = response.data.translation.element_name;
+      toast.success(`Processed ${fileName}! Extracted: "${response.data.ocr.text.substring(0, 50)}..."`, { id: fileName });
+    },
+    onError: (error, file) => {
+      toast.error(error.message || `Failed to process ${file.name}`, { id: file.name });
     }
   });
 
   const batchTranslateMutation = useMutation({
     mutationFn: (data) => translationAPI.batchTranslate(projectId, data),
     onSuccess: (response) => {
-      queryClient.invalidateQueries(['translations', projectId]);
+      queryClient.invalidateQueries({ queryKey: ['translations', projectId] });
       toast.success(`Generated ${response.data.data.success} translations!`);
     },
     onError: (error) => {
-      toast.error(error.response?.data?.error || 'Translation failed');
+      toast.error(error.message || 'Translation failed');
     }
   });
 
@@ -87,14 +95,7 @@ export default function ProjectDetails() {
     }
 
     acceptedFiles.forEach(file => {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('projectId', projectId);
-      formData.append('page', newText.page);
-      formData.append('section', newText.section);
-      formData.append('elementType', 'other');
-
-      uploadImageMutation.mutate(formData);
+      processImageMutation.mutate(file);
     });
   };
 
@@ -320,7 +321,7 @@ export default function ProjectDetails() {
         {translations && translations.length > 0 ? (
           <div className="space-y-2">
             {translations.map((item) => (
-              <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+              <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3">
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">{item.page}</span>
@@ -333,7 +334,7 @@ export default function ProjectDetails() {
                       {item.status}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-900">{item.content.en}</p>
+                  <p className="mt-1 text-sm text-gray-900">{item.content_en}</p>
                 </div>
               </div>
             ))}

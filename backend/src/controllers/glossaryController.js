@@ -1,17 +1,29 @@
-const Glossary = require('../models/Glossary');
+const supabase = require('../config/supabaseClient');
+
+// Helper to handle Supabase errors
+const handleSupabaseError = (res, error) => {
+  console.error('Supabase error:', error.message);
+  // Handle unique constraint violation
+  if (error.code === '23505') {
+    return res.status(409).json({ success: false, error: 'This term already exists in this version (or another unique constraint was violated).' });
+  }
+  res.status(500).json({ success: false, error: `Supabase error: ${error.message}` });
+};
 
 // Get all glossary terms
 exports.getAllGlossary = async (req, res) => {
   try {
     const { version, category, active } = req.query;
 
-    const filter = {};
+    let query = supabase.from('glossary').select('*');
 
-    if (version) filter.version = version;
-    if (category) filter.category = category;
-    if (active !== undefined) filter.isActive = active === 'true';
+    if (version) query = query.eq('version', version);
+    if (category) query = query.eq('category', category);
+    if (active !== undefined) query = query.eq('is_active', active === 'true');
 
-    const glossary = await Glossary.find(filter).sort({ category: 1, en: 1 });
+    const { data: glossary, error } = await query.order('category').order('en');
+
+    if (error) return handleSupabaseError(res, error);
 
     res.json({ success: true, data: glossary });
   } catch (error) {
@@ -22,7 +34,13 @@ exports.getAllGlossary = async (req, res) => {
 // Get single glossary term
 exports.getGlossaryTerm = async (req, res) => {
   try {
-    const term = await Glossary.findById(req.params.id);
+    const { data: term, error } = await supabase
+      .from('glossary')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error) return handleSupabaseError(res, error);
 
     if (!term) {
       return res.status(404).json({ success: false, error: 'Glossary term not found' });
@@ -37,33 +55,33 @@ exports.getGlossaryTerm = async (req, res) => {
 // Create glossary term
 exports.createGlossaryTerm = async (req, res) => {
   try {
-    const { en, bm, zh, category, doNotTranslate, notes, version } = req.body;
+    const { en, bm, zh, category, do_not_translate, notes, version } = req.body;
 
-    const term = new Glossary({
-      en,
-      bm,
-      zh,
-      category: category || 'general',
-      doNotTranslate: doNotTranslate || false,
-      notes,
-      version: version || 'v1.0',
-      isActive: true
-    });
+    const { data, error } = await supabase
+      .from('glossary')
+      .insert([
+        {
+          en,
+          bm,
+          zh,
+          category: category || 'general',
+          do_not_translate: do_not_translate || false,
+          notes,
+          version: version || 'v1.0',
+          is_active: true
+        }
+      ])
+      .select()
+      .single();
 
-    await term.save();
+    if (error) return handleSupabaseError(res, error);
 
     res.status(201).json({
       success: true,
-      data: term,
+      data,
       message: 'Glossary term created successfully'
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        error: 'This term already exists in this version'
-      });
-    }
     res.status(400).json({ success: false, error: error.message });
   }
 };
@@ -71,13 +89,16 @@ exports.createGlossaryTerm = async (req, res) => {
 // Update glossary term
 exports.updateGlossaryTerm = async (req, res) => {
   try {
-    const { en, bm, zh, category, doNotTranslate, notes, isActive } = req.body;
+    const { en, bm, zh, category, do_not_translate, notes, is_active } = req.body;
 
-    const term = await Glossary.findByIdAndUpdate(
-      req.params.id,
-      { en, bm, zh, category, doNotTranslate, notes, isActive },
-      { new: true, runValidators: true }
-    );
+    const { data: term, error } = await supabase
+      .from('glossary')
+      .update({ en, bm, zh, category, do_not_translate, notes, is_active })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) return handleSupabaseError(res, error);
 
     if (!term) {
       return res.status(404).json({ success: false, error: 'Glossary term not found' });
@@ -96,9 +117,16 @@ exports.updateGlossaryTerm = async (req, res) => {
 // Delete glossary term
 exports.deleteGlossaryTerm = async (req, res) => {
   try {
-    const term = await Glossary.findByIdAndDelete(req.params.id);
+    const { data, error } = await supabase
+      .from('glossary')
+      .delete()
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    
+    if (error) return handleSupabaseError(res, error);
 
-    if (!term) {
+    if (!data) {
       return res.status(404).json({ success: false, error: 'Glossary term not found' });
     }
 
@@ -124,36 +152,26 @@ exports.bulkImport = async (req, res) => {
     }
 
     const glossaryVersion = version || 'v1.0';
-    const results = [];
-    const errors = [];
+    
+    const termsToInsert = terms.map(termData => ({
+      ...termData,
+      version: glossaryVersion,
+      is_active: true
+    }));
 
-    for (const termData of terms) {
-      try {
-        const term = new Glossary({
-          ...termData,
-          version: glossaryVersion,
-          isActive: true
-        });
+    const { data: results, error } = await supabase.from('glossary').insert(termsToInsert).select();
 
-        await term.save();
-        results.push(term);
-      } catch (error) {
-        errors.push({
-          term: termData.en,
-          error: error.message
-        });
-      }
-    }
+    if (error) return handleSupabaseError(res, error);
 
     res.json({
       success: true,
       data: {
         imported: results.length,
-        errors: errors.length,
+        errors: 0,
         results,
-        errors
+        errors: []
       },
-      message: `Bulk import completed: ${results.length} successful, ${errors.length} errors`
+      message: `Bulk import completed successfully: ${results.length} terms imported.`
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -163,8 +181,11 @@ exports.bulkImport = async (req, res) => {
 // Get glossary versions
 exports.getVersions = async (req, res) => {
   try {
-    const versions = await Glossary.distinct('version');
+    const { data, error } = await supabase.from('glossary').select('version');
 
+    if (error) return handleSupabaseError(res, error);
+
+    const versions = [...new Set(data.map(item => item.version))];
     res.json({ success: true, data: versions });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -174,8 +195,11 @@ exports.getVersions = async (req, res) => {
 // Get categories
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Glossary.distinct('category');
+    const { data, error } = await supabase.from('glossary').select('category');
 
+    if (error) return handleSupabaseError(res, error);
+    
+    const categories = [...new Set(data.map(item => item.category))];
     res.json({ success: true, data: categories });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

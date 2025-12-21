@@ -1,10 +1,21 @@
-const Project = require('../models/Project');
-const Translation = require('../models/Translation');
+const supabase = require('../config/supabaseClient');
+
+// Helper to handle Supabase errors
+const handleSupabaseError = (res, error) => {
+  console.error('Supabase error:', error.message);
+  res.status(500).json({ success: false, error: `Supabase error: ${error.message}` });
+};
 
 // Get all projects
 exports.getAllProjects = async (req, res) => {
   try {
-    const projects = await Project.find().sort({ createdAt: -1 });
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return handleSupabaseError(res, error);
+
     res.json({ success: true, data: projects });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -14,7 +25,13 @@ exports.getAllProjects = async (req, res) => {
 // Get single project
 exports.getProject = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id);
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error) return handleSupabaseError(res, error);
 
     if (!project) {
       return res.status(404).json({ success: false, error: 'Project not found' });
@@ -29,20 +46,21 @@ exports.getProject = async (req, res) => {
 // Create new project
 exports.createProject = async (req, res) => {
   try {
-    const { name, description, createdBy } = req.body;
+    const { name, description } = req.body;
 
-    const project = new Project({
-      name,
-      description,
-      createdBy: createdBy || 'Marketing Team',
-      glossaryVersion: 'v1.0'
-    });
+    const { data, error } = await supabase
+      .from('projects')
+      .insert([
+        { name, description }
+      ])
+      .select()
+      .single();
 
-    await project.save();
+    if (error) return handleSupabaseError(res, error);
 
     res.status(201).json({
       success: true,
-      data: project,
+      data,
       message: 'Project created successfully'
     });
   } catch (error) {
@@ -55,11 +73,19 @@ exports.updateProject = async (req, res) => {
   try {
     const { name, description, status } = req.body;
 
-    const project = await Project.findByIdAndUpdate(
-      req.params.id,
-      { name, description, status },
-      { new: true, runValidators: true }
-    );
+    const { data: project, error } = await supabase
+      .from('projects')
+      .update({ 
+        name, 
+        description, 
+        status,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) return handleSupabaseError(res, error);
 
     if (!project) {
       return res.status(404).json({ success: false, error: 'Project not found' });
@@ -78,14 +104,19 @@ exports.updateProject = async (req, res) => {
 // Delete project
 exports.deleteProject = async (req, res) => {
   try {
-    const project = await Project.findByIdAndDelete(req.params.id);
+    // The ON DELETE CASCADE in the database schema will handle deleting all associated translations.
+    const { data, error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', req.params.id)
+      .select()
+      .single();
 
-    if (!project) {
-      return res.status(404).json({ success: false, error: 'Project not found' });
+    if (error) return handleSupabaseError(res, error);
+    
+    if (!data) {
+        return res.status(404).json({ success: false, error: 'Project not found' });
     }
-
-    // Delete all associated translations
-    await Translation.deleteMany({ projectId: req.params.id });
 
     res.json({
       success: true,
@@ -98,24 +129,59 @@ exports.deleteProject = async (req, res) => {
 
 // Get project statistics
 exports.getProjectStats = async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
+    try {
+        const projectId = req.params.id;
 
-    if (!project) {
-      return res.status(404).json({ success: false, error: 'Project not found' });
+        // 1. Get the project itself
+        const { data: project, error: projectError } = await supabase
+            .from('projects')
+            .select('status') // Select only what's needed for the response
+            .eq('id', projectId)
+            .single();
+
+        if (projectError) return handleSupabaseError(res, projectError);
+        if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+
+        // 2. Get all statuses of translations for this project
+        const { data: translationStatuses, error: statusError } = await supabase
+            .from('translations')
+            .select('status')
+            .eq('project_id', projectId);
+
+        if (statusError) return handleSupabaseError(res, statusError);
+        
+        // 3. Calculate statistics in JS
+        const stats = {
+            totalItems: translationStatuses.length,
+            approvedItems: translationStatuses.filter(t => t.status === 'approved').length,
+            pendingItems: translationStatuses.filter(t => t.status === 'pending').length,
+            rejectedItems: translationStatuses.filter(t => t.status === 'rejected').length
+        };
+
+        // 4. Update the project with the new stats
+        const { error: updateError } = await supabase
+            .from('projects')
+            .update({
+                stats_total_items: stats.totalItems,
+                stats_approved_items: stats.approvedItems,
+                stats_pending_items: stats.pendingItems,
+                stats_rejected_items: stats.rejectedItems,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', projectId);
+
+        if (updateError) return handleSupabaseError(res, updateError);
+
+        // 5. Respond with the calculated stats
+        res.json({
+            success: true,
+            data: {
+                ...stats,
+                status: project.status
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
-
-    await project.updateStatistics();
-
-    res.json({
-      success: true,
-      data: {
-        ...project.statistics,
-        status: project.status,
-        glossaryVersion: project.glossaryVersion
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
 };
