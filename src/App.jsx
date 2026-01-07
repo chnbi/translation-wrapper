@@ -6,6 +6,7 @@ import PromptLibrary from './pages/prompt-library'
 import Settings from './pages/settings'
 import ProjectView from './pages/project-details'
 import ImageTranslation from './pages/image-translation'
+import Approvals from './pages/approvals'
 import Login from './pages/login'
 import { createContext, useContext } from 'react'
 import { ROLES, canDo as checkPermission, getRoleLabel, getRoleColor, ACTIONS } from './lib/permissions'
@@ -113,6 +114,8 @@ function AppWithRouting({ authContextValue }) {
                 return { component: PromptLibrary, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Prompt Library' }] }
             case 'image-translate':
                 return { component: ImageTranslation, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Image Translation' }] }
+            case 'approvals':
+                return { component: Approvals, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Manage Approvals' }] }
             case 'settings':
                 return { component: Settings, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Settings' }] }
             default:

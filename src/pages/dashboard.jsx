@@ -1,6 +1,6 @@
 // Dashboard - Quick Actions + Recent Projects Table
 import { useState } from "react"
-import { Plus, Upload, FileText, Settings, LayoutGrid, List, FileSpreadsheet, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Plus, Upload, FileText, Settings, LayoutGrid, List, FileSpreadsheet, MoreHorizontal, Pencil, Trash2, CheckSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -167,6 +167,24 @@ export default function Dashboard() {
                         </button>
                     )
                 })}
+
+                {/* Manager Shortcut */}
+                {canDo('approve_translation') && (
+                    <button
+                        onClick={() => window.location.hash = "#approvals"}
+                        className="p-5 rounded-2xl text-left transition-all hover:shadow-card-hover hover:scale-[1.02] bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800"
+                    >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 bg-white dark:bg-zinc-900">
+                            <CheckSquare className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                        </div>
+                        <p className="font-semibold text-foreground">
+                            Manage Approvals
+                        </p>
+                        <p className="text-sm mt-0.5 text-muted-foreground">
+                            Review pending translations
+                        </p>
+                    </button>
+                )}
             </div>
 
             {/* View Mode Toggle */}

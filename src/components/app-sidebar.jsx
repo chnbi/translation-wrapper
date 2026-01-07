@@ -7,6 +7,7 @@ import {
   Folder,
   Search,
   FileText,
+  CheckSquare,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -37,6 +38,11 @@ const navEssentials = [
     title: "Prompt Library",
     url: "#prompt",
     icon: Library,
+  },
+  {
+    title: "Manage Approvals",
+    url: "#approvals",
+    icon: CheckSquare,
   },
   {
     title: "Image Translation",

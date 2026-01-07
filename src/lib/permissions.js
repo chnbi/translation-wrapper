@@ -46,6 +46,7 @@ const permissions = {
     [ROLES.ADMIN]: Object.values(ACTIONS), // Admin can do everything
 
     [ROLES.MANAGER]: [
+        ACTIONS.MANAGE_USERS, // Added per user request
         ACTIONS.MANAGE_CATEGORIES,
         ACTIONS.CONFIGURE_SETTINGS,
         ACTIONS.APPROVE_TRANSLATION,

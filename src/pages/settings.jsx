@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/App"
 import { useState } from "react"
 import ManageCategoriesDialog from "@/components/dialogs/ManageCategoriesDialog"
+import UserManagementDialog from "@/components/dialogs/UserManagementDialog"
 import { toast } from "sonner"
 import { translateBatch } from "@/lib/gemini-service"
 
@@ -50,6 +51,7 @@ const adminSections = [
         description: 'Manage team members, roles, and permissions',
         color: 'bg-rose-100 dark:bg-rose-900/40',
         iconColor: 'text-rose-600 dark:text-rose-400',
+        action: 'open_users'
     },
     {
         id: 'categories',
@@ -63,8 +65,9 @@ const adminSections = [
 ]
 
 export default function Settings() {
-    const { isAdmin, user } = useAuth()
+    const { isAdmin, canDo, user } = useAuth()
     const [isCategoryOpen, setIsCategoryOpen] = useState(false)
+    const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false)
 
     return (
         <div className="space-y-6 w-full">
@@ -141,8 +144,8 @@ export default function Settings() {
                 </div>
             </div>
 
-            {/* Admin Settings */}
-            {isAdmin && (
+            {/* Admin/Manager Settings */}
+            {canDo('manage_users') && ( // Use string directly or import ACTIONS
                 <div className="space-y-3">
                     <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wide">Administration</h2>
                     <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/50">
@@ -153,6 +156,7 @@ export default function Settings() {
                                     key={section.id}
                                     onClick={() => {
                                         if (section.action === 'open_categories') setIsCategoryOpen(true)
+                                        if (section.action === 'open_users') setIsUserMgmtOpen(true)
                                     }}
                                     className="w-full flex items-center gap-4 p-5 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors text-left"
                                 >
@@ -185,6 +189,11 @@ export default function Settings() {
             <ManageCategoriesDialog
                 open={isCategoryOpen}
                 onOpenChange={setIsCategoryOpen}
+            />
+
+            <UserManagementDialog
+                open={isUserMgmtOpen}
+                onOpenChange={setIsUserMgmtOpen}
             />
         </div>
     )

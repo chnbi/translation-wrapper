@@ -2,6 +2,7 @@
 // Uses Gemini 2.0's multimodal capabilities
 
 import { GoogleGenAI } from "@google/genai";
+import { getModel } from "./gemini-service";
 
 // Initialize the client
 const getClient = () => {
@@ -80,7 +81,7 @@ IMPORTANT:
 - Preserve line breaks within text as \\n`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: getModel(),
             contents: [
                 {
                     parts: [
@@ -202,7 +203,7 @@ Example:
 IMPORTANT: Return ONLY the JSON array, no other text.`;
 
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: getModel(),
             contents: [
                 {
                     parts: [

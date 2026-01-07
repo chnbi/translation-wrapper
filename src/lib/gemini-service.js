@@ -6,12 +6,17 @@ import { GoogleGenAI } from "@google/genai";
 
 // Initialize the client - API key from environment variable
 const getClient = () => {
+    // Note: In Vite, keys must typically start with VITE_ to be exposed to the client
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
     if (!apiKey) {
-        console.warn('GEMINI_API_KEY not found in .env file.');
+        console.warn('VITE_GEMINI_API_KEY not found in .env file.');
         return null;
     }
     return new GoogleGenAI({ apiKey });
+};
+// Get configured model or default to stable flash
+export const getModel = () => {
+    return import.meta.env.VITE_GEMINI_MODEL || "gemini-2.0-flash";
 };
 
 /**
@@ -116,11 +121,11 @@ export async function translateBatch(rows, template, options = {}) {
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: getModel(),
             contents: prompt,
         });
 
-        const text = response.text();
+        const text = response.text;
         const elapsed = Date.now() - startTime;
 
         console.log('✅ [Gemini API] Response received:', {
@@ -284,7 +289,7 @@ export async function testConnection() {
             return { success: false, message: 'API key not configured' };
         }
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: getModel(),
             contents: "Say 'API connection successful' in exactly those words.",
         });
         return { success: true, message: response.text };
@@ -299,7 +304,7 @@ export async function testConnection() {
 export function getConfig() {
     return {
         apiKeyConfigured: !!import.meta.env.VITE_GEMINI_API_KEY,
-        model: 'gemini-2.0-flash',
+        model: getModel(),
         supportedLanguages: ['en', 'my', 'zh']
     };
 }
