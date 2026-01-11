@@ -29,29 +29,55 @@ const LANGUAGE_NAMES = {
 };
 
 /**
- * Build glossary section for prompt
+ * Build glossary section for prompt with context-aware filtering (Lite-RAG)
+ * Only includes glossary terms that actually appear in the source texts
  * @param {Array} glossaryTerms - Array of {english, malay, chinese} terms
  * @param {Array} targetLanguages - Target language codes ['my', 'zh']
+ * @param {Array} sourceTexts - Array of {id, text, context} objects to check against
  * @returns {string} Formatted glossary section for prompt
  */
-function buildGlossaryPrompt(glossaryTerms, targetLanguages) {
+function buildGlossaryPrompt(glossaryTerms, targetLanguages, sourceTexts = []) {
     if (!glossaryTerms || glossaryTerms.length === 0) {
         return '';
     }
 
-    const lines = glossaryTerms.map(term => {
+    // Combine all source text into one searchable string (lowercase for case-insensitive matching)
+    const combinedSourceText = sourceTexts
+        .map(s => `${s.text || ''} ${s.context || ''}`)
+        .join(' ')
+        .toLowerCase();
+
+    // Filter glossary to only terms that appear in the source text
+    const relevantTerms = glossaryTerms.filter(term => {
+        if (!term.english) return false;
+        // Check if the English term appears in the combined source text
+        return combinedSourceText.includes(term.english.toLowerCase());
+    });
+
+    if (relevantTerms.length === 0) {
+        return '';
+    }
+
+    console.log(`📚 [Glossary] Filtered ${glossaryTerms.length} terms → ${relevantTerms.length} relevant terms`);
+
+    const lines = relevantTerms.map(term => {
         const translations = targetLanguages.map(lang => {
             const langName = lang === 'my' ? 'Malay' : 'Chinese';
             const value = lang === 'my' ? term.malay : term.chinese;
             return value ? `${langName}: "${value}"` : null;
         }).filter(Boolean).join(', ');
 
-        return `- "${term.english}" → ${translations}`;
+        return `| ${term.english} | ${translations} |`;
     });
 
     return `
-## Glossary (IMPORTANT: Use these exact translations)
-The following terms MUST be translated exactly as specified:
+## MANDATORY GLOSSARY - YOU MUST USE THESE EXACT TRANSLATIONS
+> [!CRITICAL] The following terms have been specifically defined for brand consistency.
+> You MUST use these exact translations whenever these English terms appear in the source text.
+> Do NOT use alternative translations for these terms under any circumstances.
+
+| English Term | Required Translations |
+|--------------|----------------------|
 ${lines.join('\n')}
 `;
 }
@@ -166,8 +192,8 @@ function buildTranslationPrompt(sourceTexts, template, targetLanguages, glossary
     // Process template with variable substitution
     const styleInstruction = processTemplate(template, targetLanguages);
 
-    // Build glossary section
-    const glossarySection = buildGlossaryPrompt(glossaryTerms, targetLanguages);
+    // Build glossary section (with context-aware filtering)
+    const glossarySection = buildGlossaryPrompt(glossaryTerms, targetLanguages, sourceTexts);
 
     const prompt = `You are a professional translator for a Malaysian telecommunications company. Translate the following texts from English to ${targetLangStr}.
 

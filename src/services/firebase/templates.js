@@ -66,15 +66,28 @@ export async function deleteTemplate(templateId) {
     }
 }
 
-
+// Seeding flag to prevent race conditions (React StrictMode runs effects twice)
+let isSeedingTemplates = false
 
 export async function seedDefaultTemplates() {
+    // Prevent concurrent seeding (race condition from StrictMode)
+    if (isSeedingTemplates) {
+        console.log('⏳ [Firestore] Seeding already in progress, skipping...')
+        return
+    }
+
     const existing = await getTemplates()
     if (existing.length > 0) return
 
+    isSeedingTemplates = true
     console.log('📦 [Firestore] Seeding default templates...')
-    for (const template of defaultPromptTemplates) {
-        await createTemplate(template)
+
+    try {
+        for (const template of defaultPromptTemplates) {
+            await createTemplate(template)
+        }
+        console.log('✅ [Firestore] Seeded default templates')
+    } finally {
+        isSeedingTemplates = false
     }
-    console.log('✅ [Firestore] Seeded default templates')
 }

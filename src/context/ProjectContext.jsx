@@ -12,10 +12,11 @@ export function ProjectProvider({ children }) {
     // Data hook - handles all Firebase CRUD
     const data = useProjectData()
 
-    // Fetch glossary terms for translation
+    // Fetch only APPROVED glossary terms for translation
+    // This ensures unapproved/pending terms are not used in AI translations
     const fetchGlossaryTerms = useCallback(async () => {
         try {
-            const terms = await firestoreService.getGlossaryTerms()
+            const terms = await firestoreService.getApprovedGlossaryTerms()
             return terms
         } catch (error) {
             console.warn('[Translation] Failed to fetch glossary:', error)
@@ -51,12 +52,31 @@ export function ProjectProvider({ children }) {
     }, [getRowsForProject, selection])
 
     // Wrapper: Queue translation for selected rows
-    const translateSelectedRows = useCallback((projectId, template) => {
+    // Groups rows by promptId for optimized batch processing
+    const translateSelectedRows = useCallback((projectId, fallbackTemplate, getTemplateById) => {
         const selectedIds = selection.getSelectedRowIds(projectId)
         if (!selectedIds || selectedIds.size === 0) return
 
         const rows = getRowsForProject(projectId).filter(r => selectedIds.has(r.id))
-        translation.queueTranslation(projectId, rows, template)
+
+        // Group rows by promptId
+        const grouped = {}
+        rows.forEach(row => {
+            const promptId = row.promptId || 'default'
+            if (!grouped[promptId]) grouped[promptId] = []
+            grouped[promptId].push(row)
+        })
+
+        // Queue each group with its respective template
+        Object.entries(grouped).forEach(([promptId, groupRows]) => {
+            let template = fallbackTemplate
+            if (promptId !== 'default' && getTemplateById) {
+                const assignedTemplate = getTemplateById(promptId)
+                if (assignedTemplate) template = assignedTemplate
+            }
+            translation.queueTranslation(projectId, groupRows, template)
+        })
+
         selection.deselectAllRows(projectId)
     }, [selection, getRowsForProject, translation])
 

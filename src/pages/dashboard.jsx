@@ -11,7 +11,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ImportExcelDialog, NewProjectDialog } from "@/components/dialogs"
+import { ImportExcelDialog } from "@/components/dialogs"
+import NewProjectForm from "@/components/NewProjectForm"
 import { useProjects } from "@/context/ProjectContext"
 import { useAuth, ACTIONS } from "@/App"
 
@@ -345,10 +346,13 @@ export default function Dashboard() {
                 onImport={handleImport}
             />
 
-            <NewProjectDialog
-                open={isNewProjectOpen}
-                onOpenChange={setIsNewProjectOpen}
-                onSubmit={handleNewProject}
+            <NewProjectForm
+                isOpen={isNewProjectOpen}
+                onClose={() => setIsNewProjectOpen(false)}
+                onSubmit={(data) => {
+                    handleNewProject(data)
+                    setIsNewProjectOpen(false)
+                }}
             />
         </div>
     )

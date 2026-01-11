@@ -1,0 +1,604 @@
+# =============================================================================
+# TRANSLATION WRAPPER - REQUIREMENTS DOCUMENT (LLM-OPTIMIZED)
+# =============================================================================
+# 
+# PURPOSE: This document serves as the single source of truth for development.
+# FORMAT: Structured for LLM comprehension with consistent sections and markers.
+# VERSION: 2.1
+# LAST UPDATED: 2026-01-08
+# STATUS LEGEND: [DONE] = Completed | [IN PROGRESS] = Actively developing | [PLANNED] = Not started
+#
+# =============================================================================
+
+
+# =============================================================================
+# SECTION 1: PROJECT OVERVIEW
+# =============================================================================
+
+## 1.1 DESCRIPTION
+--------------------------------------------------------------------------------
+Translation wrapper tool for a telecommunications company content team.
+
+PRIMARY PURPOSE:
+- Copywriters create content in English
+- AI translates to Bahasa Malaysia and Simplified Chinese
+- Humans review and approve translations before publishing
+
+KEY VALUE PROPOSITION:
+- AI-assisted translation with Gemini API
+- Brand consistency via managed glossaries
+- Customizable prompts for different content types
+- Role-based workflow with human approval gates
+
+
+## 1.2 SUPPORTED LANGUAGES
+--------------------------------------------------------------------------------
+| Code | Language             | Role           |
+|------|----------------------|----------------|
+| EN   | English              | Primary/Source |
+| MY   | Bahasa Malaysia      | Target         |
+| ZH   | Simplified Chinese   | Target         |
+
+
+## 1.3 TECHNOLOGY STACK
+--------------------------------------------------------------------------------
+| Layer      | Technology                          |
+|------------|-------------------------------------|
+| Frontend   | React + Vite + TailwindCSS + ShadCN |
+| Backend    | Firebase (Firestore, Auth)          |
+| AI         | Google Gemini API (@google/genai)   |
+| Files      | xlsx library (Excel import/export)  |
+
+
+# =============================================================================
+# SECTION 2: CORE FEATURES
+# =============================================================================
+
+
+## 2.1 AI-ASSISTED TRANSLATION [DONE]
+--------------------------------------------------------------------------------
+PURPOSE: Automate translations using Gemini API while maintaining quality.
+
+USER FLOW:
+1. User clicks Project Page, and sees a row of quick action buttons, and recent projects.
+2. User can choose to create a new project, or import an excel sheet.
+3. In the project page, users can choose to add new rows. They can type in the english source, and prompt for ai translation for the rest of the languages. 
+4. Each row is assigned with the 'default' prompt to perform bulk translation first. 
+5. System queues rows for translation and calls Gemini API with: prompt + glossary + source text
+6. System receives translations → row status becomes "Review"
+7. User reviews and approves/rejects translations
+8. upon multiple times of bulk translation, the system should call gemini api to finish the untranslated ones first. unless users checks the row to regenerate. 
+
+TECHNICAL IMPLEMENTATION:
+- [x] Gemini API integration (gemini-service.js)
+- [x] Batch processing: 10 rows per API call
+- [x] Rate limit handling: exponential backoff on HTTP 429
+- [x] Queue management: stop/cancel functionality
+- [x] Dynamic model selection via VITE_GEMINI_MODEL env var
+- [x] Current model: gemini-2.0-flash
+
+
+## 2.2 REVIEW WORKFLOW (HUMAN-IN-THE-LOOP) [DONE]
+--------------------------------------------------------------------------------
+PURPOSE: Human oversight of AI translations before final approval.
+
+WORKFLOW TYPE: Edit-in-Place
+- Editors and Managers can edit translations directly (saved immediately) after AI-translation. They can provide their own interpretation of translation also.
+- After editing, a final review is still needed. Managers would need to approve the translation in order to be used.
+
+EDITOR FLOW:
+┌───────────────────────────────────────────────────────────────────────┐
+│ 1. AI translates                         → Status = "Review"          │
+│ 2. Editor reviews translation in table                                │
+│ 3. Editor edits text if needed           → Changes saved directly     │
+│ 4. Status remains "Review"               → Editor CANNOT approve      │
+│ 5. Editor can regenerate translatino if needed                        |
+│ 6. Waits for Manager to approve                                       │
+└───────────────────────────────────────────────────────────────────────┘
+
+MANAGER FLOW:
+┌───────────────────────────────────────────────────────────────────────┐
+│ 1. AI translates                         → Status = "Review"          │
+│ 2. Manager reviews (can also edit, and regenerate using AI)           |                        │
+│ 3. Manager clicks "Approve"              → Status = "Completed"       │
+│ 4. OR Manager bulk-approves/rejects multiple rows. They can select a few to reject, and allow all to approve etc.                             │
+└───────────────────────────────────────────────────────────────────────┘
+
+ROLE-ACTION MATRIX:
+| Action           | Editor | Manager |
+|------------------|--------|---------|
+| Edit text        | ✅     | ✅      |
+| Approve          | ❌     | ✅      |
+| Reject           | ❌     | ✅      |
+| Re-translate     | ✅     | ✅      |
+
+TECHNICAL IMPLEMENTATION:
+- [x] Status workflow: Draft → Pending → Review → Completed
+- [x] Approve/Reject buttons (Manager only)
+- [x] Bulk actions: Approve All, Reject All
+- [x] Status badges: Green=Completed, Yellow=Review, Red=Rejected
+- [x] Centralized Approval Dashboard at /approvals (Manager only)
+
+
+## 2.3 GLOSSARY MANAGEMENT [DONE]
+--------------------------------------------------------------------------------
+PURPOSE: Maintain term consistency across translations.
+EXAMPLE: "Data" always translates to "数据" (not "流量")
+INCLUDES: Brand terms that should remain in English
+
+USER FLOW:
+1. Admin/Manager adds terms to glossary
+2. Each term has: English, Malay, Chinese translations
+3. Terms are categorized (General, UI, Brand, etc.)
+4. During translation, glossary terms are injected into AI prompt
+5. AI is instructed to use exact glossary translations
+
+TECHNICAL IMPLEMENTATION:
+- [x] GlossaryContext (GlossaryContext.jsx)
+- [x] Glossary Library UI page
+- [x] CRUD operations (Add, Edit, Delete terms)
+- [x] Category management (dynamic categories from Firebase)
+- [x] Bulk import from Excel
+- [x] Glossary injection into translation prompts
+
+
+## 2.4 PROMPT ENGINEERING [DONE]
+--------------------------------------------------------------------------------
+PURPOSE: Customizable prompts for different content types.
+
+USE CASES:
+| Content Type     | Translation Style       |
+|------------------|-------------------------|
+| Banner slogans   | Short, punchy, creative |
+| Feature titles   | Clear, benefit-focused  |
+| News paragraphs  | Formal, informative     |
+| Legal text       | Precise, formal         |
+
+USER FLOW:
+1. User creates prompt templates in Prompt Library
+2. Each template has: Name, Prompt text, Category, Status
+3. During translation, user selects which template to use
+4. Template is injected into AI system prompt
+
+TECHNICAL IMPLEMENTATION:
+- [x] PromptContext (PromptContext.jsx)
+- [x] Prompt Library UI page
+- [x] CRUD operations (Add, Edit, Delete, Duplicate)
+- [x] Status workflow: Draft → Review → Published
+- [x] Category filtering (Banner, Button, Features, etc.)
+- [x] Variable substitution: {{target_language}}
+
+
+## 2.5 EXCEL IMPORT/EXPORT [DONE]
+--------------------------------------------------------------------------------
+PURPOSE: Bulk content handling via Excel files.
+
+IMPORT FLOW:
+1. User clicks "Import Excel" on Dashboard
+2. User selects Excel file
+3. System parses file (supports multi-sheet)
+4. User maps columns to English, Malay, Chinese
+5. System creates project with parsed rows
+
+EXPORT FLOW:
+1. User opens a project
+2. User clicks "Export"
+3. System generates Excel file with all translations
+4. File downloads to user's computer
+
+TECHNICAL IMPLEMENTATION:
+- [x] xlsx library integration
+- [x] Multi-sheet parsing
+- [x] ImportExcelDialog component
+- [x] Column mapping UI
+- [x] Export to Excel functionality
+
+
+# =============================================================================
+# SECTION 3: APPLICATION SCREENS
+# =============================================================================
+
+
+## 3.1 DASHBOARD (Projects Screen) [DONE]
+--------------------------------------------------------------------------------
+PATH: / or #projects
+
+LAYOUT:
+┌───────────────────────────────────────────────────────────────────────┐
+│ QUICK ACTIONS BAR                                                     │
+│ ┌──────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────────────┐       │
+│ │ New      │ │ Import       │ │ Settings │ │ Manage Approvals │       │
+│ │ Project  │ │ Excel        │ │          │ │ (Manager only)   │       │
+│ └──────────┘ └──────────────┘ └──────────┘ └──────────────────┘       │
+├───────────────────────────────────────────────────────────────────────┤
+│ RECENT PROJECTS                                                       │
+│ [Search bar] [Grid/List toggle]                                       │
+│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                       │
+│ │ Project 1   │ │ Project 2   │ │ Project 3   │                       │
+│ │ Status: ●   │ │ Status: ●   │ │ Status: ●   │                       │
+│ │ 45 rows     │ │ 120 rows    │ │ 30 rows     │                       │
+│ └─────────────┘ └─────────────┘ └─────────────┘                       │
+└───────────────────────────────────────────────────────────────────────┘
+
+ACTIONS:
+- New Project → Opens NewProjectDialog → Creates empty project
+- Import Excel → Opens ImportExcelDialog → Creates project with rows
+- Click Project → Navigates to /project/{id}
+- Manage Approvals → Navigates to /approvals (Manager only)
+
+
+## 3.2 PROJECT DETAILS (Translation View) [DONE]
+--------------------------------------------------------------------------------
+PATH: #project/{projectId}
+
+LAYOUT:
+┌───────────────────────────────────────────────────────────────────────┐
+│ HEADER: [Project Name] [Page Selector ▼] [Export] [Delete]           │
+├───────────────────────────────────────────────────────────────────────┤
+│ TABS: [All] [Pending] [Review] [Completed]                           │
+├───────────────────────────────────────────────────────────────────────┤
+│ TABLE:                                                                │
+│ ┌──┬─────────────┬─────────────┬─────────────┬────────┬──────────┐   │
+│ │☐ │ English     │ Malay       │ Chinese     │ Status │ Actions  │   │
+│ ├──┼─────────────┼─────────────┼─────────────┼────────┼──────────┤   │
+│ │☐ │ Hello       │ Halo        │ 你好        │ ●Done  │ [✓][✗][⟳]│   │
+│ │☐ │ Subscribe   │ Langgan     │ 订阅        │ ●Review│ [✓][✗][⟳]│   │
+│ └──┴─────────────┴─────────────┴─────────────┴────────┴──────────┘   │
+├───────────────────────────────────────────────────────────────────────┤
+│ BULK ACTIONS (when rows selected):                                   │
+│ [☑ 4 selected] [Assign Prompt ▼] [Translate] [Approve] [Reject]      │
+└───────────────────────────────────────────────────────────────────────┘
+
+USER FLOW - OPEN PROJECT:
+1. User clicks project on Dashboard
+2. System loads project data from Firebase
+3. System displays rows in table
+
+USER FLOW - TRANSLATE SELECTED:
+1. User checks rows to translate
+2. User clicks "Translate Selected"
+3. User selects a prompt template
+4. System queues rows for translation
+5. Progress indicator shows translation status
+6. On complete, rows update with translations
+
+
+## 3.3 GLOSSARY LIBRARY [DONE]
+--------------------------------------------------------------------------------
+PATH: #glossary
+
+LAYOUT:
+- Header: Title, Add Term button
+- Search bar
+- Category filter tabs
+- Table columns: English, Malay, Chinese, Category, Actions
+
+USER FLOW - ADD TERM:
+1. User clicks "Add Term"
+2. Dialog opens with fields
+3. User enters translations and selects category
+4. User saves → Term added to glossary
+
+
+## 3.4 PROMPT LIBRARY [DONE]
+--------------------------------------------------------------------------------
+PATH: #prompt
+
+LAYOUT:
+- Header: Title, Add New button
+- Status tabs: All, Draft, In Review, Published
+- Category pills for filtering
+- Card grid: Prompt cards showing name, category, preview, status
+
+USER FLOW - CREATE PROMPT:
+1. User clicks "Add New"
+2. Dialog opens with fields (Name, Prompt text, Category)
+3. User saves → Prompt created with "Draft" status
+
+
+## 3.5 APPROVAL DASHBOARD [DONE]
+--------------------------------------------------------------------------------
+PATH: #approvals
+ACCESS: Manager and Admin only
+
+PURPOSE: Centralized view for reviewing ALL pending translations across all projects.
+
+LAYOUT:
+- Header: Title, pending count
+- Tabs: Pending, Rejected, History
+- Search bar
+- List items showing: Project badge, EN/MY/ZH text, Approve/Reject buttons
+
+USER FLOW:
+1. Manager navigates to Approvals page
+2. System fetches all rows with status="review" from all projects
+3. Manager reviews each item
+4. Approve → Status = "Completed"
+5. Reject → Status = "Rejected"
+
+
+## 3.6 IMAGE TRANSLATION [DONE]
+--------------------------------------------------------------------------------
+PATH: #image-translate
+
+PURPOSE: Extract text from images via OCR and translate.
+
+USER FLOW:
+1. User drags/drops image
+2. System sends image to Gemini Vision API
+3. System extracts text lines from image
+4. User reviews extracted text
+5. User translates text (with glossary/prompt support)
+
+
+## 3.7 SETTINGS [DONE]
+--------------------------------------------------------------------------------
+PATH: #settings
+
+SECTIONS:
+- User Profile: Name, email, role badge
+- AI Connection Status: Test API connection button
+- Administration (Manager/Admin only):
+  - Manage Categories: Add/Edit/Delete glossary categories
+  - User Management: View users, change roles
+
+
+# =============================================================================
+# SECTION 4: ROLE-BASED ACCESS CONTROL (RBAC)
+# =============================================================================
+
+
+## 4.1 DEVELOPMENT NOTE
+--------------------------------------------------------------------------------
+CURRENT APPROACH: Developing with MANAGER FLOW FIRST.
+All features are tested with full manager access. Role restrictions will be
+added after core functionality is stable.
+
+DEV MODE CONFIG (src/App.jsx):
+- DEV_BYPASS_AUTH = true (simulates Manager access)
+- Role selector in header for testing different roles
+
+
+## 4.2 ROLE DEFINITIONS
+--------------------------------------------------------------------------------
+| Role     | Description                              | Primary User       |
+|----------|------------------------------------------|--------------------|
+| ADMIN    | Full system access, user management      | System admin       |
+| MANAGER  | Approves translations, manages settings  | Content team lead  |
+| EDITOR   | Creates/edits content, submits for review| Copywriter         |
+| VIEWER   | Read-only access                         | Stakeholder/client |
+
+
+## 4.3 PERMISSIONS MATRIX
+--------------------------------------------------------------------------------
+| Permission              | Admin | Manager | Editor | Viewer   |
+|-------------------------|-------|---------|--------|----------|
+| View Projects           | ✅    | ✅      | ✅     | ✅ (own) |
+| Create Project          | ✅    | ✅      | ✅     | ❌       |
+| Edit Translations       | ✅    | ✅      | ✅     | ❌       |
+| Translate (AI)          | ✅    | ✅      | ✅     | ❌       |
+| Submit for Review       | ✅    | ✅      | ✅     | ❌       |
+| Approve Translation     | ✅    | ✅      | ❌     | ❌       |
+| Reject Translation      | ✅    | ✅      | ❌     | ❌       |
+| Manage Glossary         | ✅    | ✅      | ✅     | ❌       |
+| Manage Prompts          | ✅    | ✅      | ✅     | ❌       |
+| Manage Categories       | ✅    | ✅      | ❌     | ❌       |
+| Manage Users            | ✅    | ✅*     | ❌     | ❌       |
+| Configure Settings      | ✅    | ✅      | ❌     | ❌       |
+| Delete Project          | ✅    | ✅      | ❌     | ❌       |
+
+*Manager cannot edit Admin accounts
+
+
+## 4.4 UI VISIBILITY BY ROLE
+--------------------------------------------------------------------------------
+| UI Element               | Admin/Manager | Editor   | Viewer   |
+|--------------------------|---------------|----------|----------|
+| "New Project" button     | ✅ Visible    | ✅ Visible| ❌ Hidden|
+| "Import Excel" button    | ✅ Visible    | ✅ Visible| ❌ Hidden|
+| "Manage Approvals" card  | ✅ Visible    | ❌ Hidden | ❌ Hidden|
+| Sidebar: "Approvals"     | ✅ Visible    | ❌ Hidden | ❌ Hidden|
+| "Approve" button (row)   | ✅ Visible    | ❌ Hidden | ❌ Hidden|
+| "Reject" button (row)    | ✅ Visible    | ❌ Hidden | ❌ Hidden|
+| "Translate" button       | ✅ Visible    | ✅ Visible| ❌ Hidden|
+| "Edit Translation" cell  | ✅ Enabled    | ✅ Enabled| ❌ Disabled|
+| Settings: Administration | ✅ Visible    | ❌ Hidden | ❌ Hidden|
+
+
+## 4.5 STATUS TRANSITIONS BY ROLE
+--------------------------------------------------------------------------------
+| Current Status | Action            | Manager Result  | Editor Result      |
+|----------------|-------------------|-----------------|-------------------|
+| Draft          | Translate         | → Pending       | → Pending         |
+| Pending        | AI Completes      | → Review        | → Review          |
+| Review         | Click Approve     | → Completed ✅  | ❌ (button hidden)|
+| Review         | Click Reject      | → Rejected      | ❌ (button hidden)|
+| Rejected       | Re-translate      | → Pending       | → Pending         |
+
+
+# =============================================================================
+# SECTION 5: DATA ARCHITECTURE
+# =============================================================================
+
+
+## 5.1 FIREBASE COLLECTIONS
+--------------------------------------------------------------------------------
+projects/
+├── {projectId}
+│   ├── id: string
+│   ├── name: string
+│   ├── status: string
+│   ├── createdAt: timestamp
+│   ├── lastUpdated: timestamp
+│   └── pages/ (subcollection)
+│       └── {pageId}
+│           ├── id: string
+│           ├── name: string
+│           └── rows: array<RowObject>
+
+glossary/
+└── {termId}
+    ├── id: string
+    ├── english: string
+    ├── malay: string
+    ├── chinese: string
+    ├── category: string
+    └── createdAt: timestamp
+
+glossaryCategories/
+└── {categoryId}
+    ├── id: string
+    ├── name: string
+    └── color: string
+
+prompts/
+└── {promptId}
+    ├── id: string
+    ├── name: string
+    ├── prompt: string
+    ├── category: string
+    ├── status: string (draft|review|published)
+    └── createdAt: timestamp
+
+
+## 5.2 ROW OBJECT STRUCTURE
+--------------------------------------------------------------------------------
+{
+  id: string,           // Unique identifier
+  en: string,           // English text
+  my: string,           // Malay translation
+  zh: string,           // Chinese translation
+  status: string,       // draft|pending|review|completed|rejected
+  promptId: string|null // Reference to prompt template (planned)
+}
+
+
+## 5.3 LOCAL STATE (REACT CONTEXT)
+--------------------------------------------------------------------------------
+| Context          | Purpose                           |
+|------------------|-----------------------------------|
+| ProjectContext   | Current projects, CRUD operations |
+| GlossaryContext  | Glossary terms, CRUD operations   |
+| PromptContext    | Prompt templates, CRUD operations |
+
+
+# =============================================================================
+# SECTION 6: SECURITY [DONE]
+# =============================================================================
+
+IMPLEMENTED:
+- [x] API keys stored in .env (gitignored)
+- [x] Firebase config uses environment variables
+- [x] .env.example provided for developers
+- [x] No hardcoded secrets in code
+
+
+# =============================================================================
+# SECTION 7: PLANNED FEATURES (NOT YET IMPLEMENTED)
+# =============================================================================
+
+
+## 7.1 PER-ROW PROMPT ASSIGNMENT [IN PROGRESS]
+--------------------------------------------------------------------------------
+PURPOSE: Tag individual rows with specific prompts before translation.
+AUTO-GROUPING: System groups rows by prompt for efficient batch processing.
+
+DATA MODEL CHANGE:
+- Add `promptId` field to each row: { id, en, my, zh, status, promptId }
+- Default value: null (uses "Default" prompt)
+
+UI CHANGES:
+- New "Prompt" column in project table (shows assigned prompt badge)
+- "Assign Prompt" button in bulk actions bar
+
+AUTO-GROUPING LOGIC:
+```javascript
+const grouped = {};
+selectedRows.forEach(row => {
+  const promptId = row.promptId || 'default';
+  if (!grouped[promptId]) grouped[promptId] = [];
+  grouped[promptId].push(row);
+});
+
+for (const [promptId, rows] of Object.entries(grouped)) {
+  const prompt = getPromptById(promptId);
+  await translateBatch(rows, prompt, options);
+}
+```
+
+TASKS:
+- [ ] Add `promptId` field to row data model
+- [ ] Add "Prompt" column to project table
+- [ ] Add "Assign Prompt" to bulk actions bar
+- [ ] Implement prompt dropdown component
+- [ ] Modify useTranslation.js for auto-grouping
+- [ ] Update Firebase write logic for promptId
+
+
+## 7.2 AUTHENTICATION [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Real Firebase Auth integration (Email/Password or Google)
+- [ ] Route protection (redirect if not logged in)
+- [ ] Session management
+
+
+## 7.3 WORD DOCUMENT SUPPORT [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Import from .docx files
+- [ ] Export translations to .docx
+- [ ] Preserve formatting
+
+
+## 7.4 AUTOMATED QUALITY CHECKS [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Validation: Check if {placeholders} are preserved
+- [ ] Length check: Warn if translation >2x source length
+- [ ] Warning icons on failed validations
+
+
+## 7.5 TRANSLATION MEMORY / RAG [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Save approved translations to memory
+- [ ] Query memory before new translation
+- [ ] Suggest similar past translations
+
+
+## 7.6 UI ENHANCEMENTS [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Prompt Library: Side panel editor
+- [ ] Prompt Library: Structured fields (Role, Goal, Constraints, Tone)
+- [ ] Sidebar: "Home" item at top
+- [ ] Global variable configuration
+
+
+## 7.7 DEPLOYMENT [PLANNED]
+--------------------------------------------------------------------------------
+- [ ] Production build
+- [ ] Deploy to Vercel/Netlify
+- [ ] Environment variables in production
+
+
+# =============================================================================
+# SECTION 8: VERSION HISTORY
+# =============================================================================
+
+v2.1 (2026-01-08):
+- Refined requirements document for LLM comprehension
+- Added structured sections and consistent formatting
+- Improved data architecture documentation
+
+v2.0 (2026-01-08):
+- Added Centralized Approval Dashboard
+- Fixed Gemini API integration (model update)
+- Moved Firebase config to environment variables
+- Security audit completed
+
+v1.0 (2026-01-06):
+- Initial implementation
+- Core features: Translation, Glossary, Prompts, Excel I/O
+- RBAC system
+
+
+# =============================================================================
+# END OF DOCUMENT
+# =============================================================================

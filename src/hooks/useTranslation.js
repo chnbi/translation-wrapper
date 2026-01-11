@@ -37,7 +37,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
 
         try {
             const glossaryTerms = fetchGlossaryFn ? await fetchGlossaryFn() : []
-            const { translateBatch } = await import('@/lib/gemini-service')
+            const { translateBatch } = await import('@/services/gemini')
             const results = await translateBatch(rows, template, {
                 targetLanguages: ['my', 'zh'],
                 glossaryTerms

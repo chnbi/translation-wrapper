@@ -34,9 +34,14 @@ export {
 // Glossary operations
 export {
     getGlossaryTerms,
+    getApprovedGlossaryTerms,
     createGlossaryTerm,
+    createGlossaryTerms,
     updateGlossaryTerm,
     deleteGlossaryTerm,
     deleteGlossaryTerms,
-    seedDefaultGlossary
+    seedDefaultGlossary,
+    getGlossaryCategories,
+    createGlossaryCategory,
+    deleteGlossaryCategory
 } from './glossary'

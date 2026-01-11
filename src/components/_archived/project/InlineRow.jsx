@@ -1,5 +1,5 @@
 // InlineRow - Displays translation row in card format with inline editing
-import { CheckSquare, Square, Loader2, AlertCircle } from "lucide-react"
+import { CheckSquare, Square, Loader2, AlertCircle, Tag } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 // Status styling maps
@@ -31,6 +31,7 @@ export default function InlineRow({
     onEditChange,
     onCellSave,
     onKeyDown,
+    promptName,
 }) {
     const isTranslating = row.status === 'translating'
     const isError = row.status === 'error'
@@ -64,9 +65,9 @@ export default function InlineRow({
 
     return (
         <div className={`rounded-xl border p-4 transition-all ${isSelected ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20' :
-                isTranslating ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10' :
-                    isError ? 'border-red-300 dark:border-red-700' :
-                        'border-border hover:border-border/80 bg-card'
+            isTranslating ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/10' :
+                isError ? 'border-red-300 dark:border-red-700' :
+                    'border-border hover:border-border/80 bg-card'
             }`}>
             {/* Header */}
             <div className="flex items-center gap-3 mb-3">
@@ -85,6 +86,13 @@ export default function InlineRow({
                     <p className="text-sm font-medium truncate">{row.en || row.source}</p>
                 </div>
 
+                {promptName && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 flex-shrink-0 flex items-center gap-1">
+                        <Tag className="w-3 h-3" />
+                        {promptName}
+                    </span>
+                )}
+
                 <Badge variant="secondary" className={`text-xs flex-shrink-0 ${statusColors[row.status] || statusColors.pending}`}>
                     {isTranslating && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
                     {isError && <AlertCircle className="w-3 h-3 mr-1" />}
@@ -95,13 +103,13 @@ export default function InlineRow({
             {/* Translations Row */}
             <div className="flex items-center gap-3 pl-7">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs text-muted-foreground w-6 flex-shrink-0">🇨🇳</span>
-                    <EditableCell lang="zh" value={row.zh} />
+                    <span className="text-xs text-muted-foreground w-6 flex-shrink-0">🇲🇾</span>
+                    <EditableCell lang="my" value={row.my} />
                 </div>
                 <div className="w-px h-6 bg-border flex-shrink-0" />
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs text-muted-foreground w-6 flex-shrink-0">🇲🇾</span>
-                    <EditableCell lang="my" value={row.my} />
+                    <span className="text-xs text-muted-foreground w-6 flex-shrink-0">🇨🇳</span>
+                    <EditableCell lang="zh" value={row.zh} />
                 </div>
             </div>
         </div>

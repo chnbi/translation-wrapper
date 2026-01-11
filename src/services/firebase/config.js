@@ -1,5 +1,5 @@
 // services/firebase/config.js - Shared Firebase config and utilities
-import { db } from '@/lib/firebase'
+import { db } from './client'
 import {
     collection,
     doc,

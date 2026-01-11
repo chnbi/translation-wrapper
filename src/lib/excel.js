@@ -104,12 +104,21 @@ export async function parseExcelFile(file) {
                             english: '',
                             malay: '',
                             chinese: '',
+                            category: '',
+                            remark: '',
                             rowIndex: i
                         }
 
                         normalizedHeaders.forEach((header, idx) => {
                             if (['english', 'malay', 'chinese'].includes(header) && row[idx]) {
                                 entry[header] = String(row[idx]).trim()
+                            }
+                            // Also capture category and remark for glossary imports
+                            if (header === 'category' && row[idx]) {
+                                entry.category = String(row[idx]).trim()
+                            }
+                            if ((header === 'remark' || header === 'remarks' || header === 'note' || header === 'notes') && row[idx]) {
+                                entry.remark = String(row[idx]).trim()
                             }
                         })
 

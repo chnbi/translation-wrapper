@@ -2,7 +2,7 @@
 // Uses Gemini 2.0's multimodal capabilities
 
 import { GoogleGenAI } from "@google/genai";
-import { getModel } from "./gemini-service";
+import { getModel } from "./text";
 
 // Initialize the client
 const getClient = () => {

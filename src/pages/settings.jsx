@@ -6,7 +6,7 @@ import { useState } from "react"
 import ManageCategoriesDialog from "@/components/dialogs/ManageCategoriesDialog"
 import UserManagementDialog from "@/components/dialogs/UserManagementDialog"
 import { toast } from "sonner"
-import { translateBatch } from "@/lib/gemini-service"
+import { translateBatch } from "@/services/gemini"
 
 const settingsSections = [
     {

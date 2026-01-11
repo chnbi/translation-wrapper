@@ -1,35 +1,13 @@
-import { useState, useEffect, useRef } from "react"
-import { FileSpreadsheet, Languages, Download, CheckCircle, Clock, Sparkles, ArrowLeft, ChevronDown, Square, CheckSquare, Loader2, AlertCircle, X, Upload, Plus, Table, List, Trash2, Check, XCircle } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { FileSpreadsheet, Download, Square, CheckSquare, Loader2, X, Upload, Plus, Filter, Check, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { COLORS, PillButton, TableActionButton } from "@/components/ui/shared"
 import { useProjects } from "@/context/ProjectContext"
 import { usePrompts } from "@/context/PromptContext"
-import { useAuth, ACTIONS } from "@/App"
+import { useAuth } from "@/App"
 import * as XLSX from "xlsx"
 import { parseExcelFile } from "@/lib/excel"
-import { InlineRow, TableRow } from "@/components/project"
-
-// Extended status colors
-const statusColors = {
-    'completed': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
-    'review': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-    'pending': 'bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
-    'queued': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
-    'translating': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400',
-    'error': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
-}
-
-const statusLabels = {
-    'completed': 'Done',
-    'review': 'Review',
-    'pending': 'Pending',
-    'queued': 'Queued',
-    'translating': 'Translating',
-    'error': 'Error',
-}
 
 export default function ProjectView({ projectId }) {
     const {
@@ -47,49 +25,53 @@ export default function ProjectView({ projectId }) {
         toggleRowSelection,
         selectAllRows,
         deselectAllRows,
-        selectRowsByStatus,
-        translateSelectedRows,
-        cancelTranslationQueue,
-        isProcessing,
-        queueProgress,
         deleteRows,
     } = useProjects()
 
     const { templates } = usePrompts()
     const { canDo } = useAuth()
 
-    const [activeTab, setActiveTab] = useState("translation") // "translation" or "review"
-    const [viewMode, setViewMode] = useState("inline") // "inline" or "table"
-    const [editingCell, setEditingCell] = useState(null)
-    const [editValue, setEditValue] = useState("")
-    const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
-    const [showAddRowModal, setShowAddRowModal] = useState(false)
-    const [newRowText, setNewRowText] = useState("")
+    const [isAddingRow, setIsAddingRow] = useState(false)
+    const [newRowData, setNewRowData] = useState({ en: '', my: '', zh: '' })
+    const newRowInputRef = useRef(null)
     const [isImporting, setIsImporting] = useState(false)
-    const [statusFilter, setStatusFilter] = useState("all")
     const [searchQuery, setSearchQuery] = useState("")
 
     const fileInputRef = useRef(null)
 
-    const id = projectId || window.location.hash.split('/')[1]
-    const project = getProject(id)
+    // Parse project ID and page ID from URL
+    const hashParts = window.location.hash.split('?')
+    const id = projectId || hashParts[0].split('/')[1]
+    const urlParams = new URLSearchParams(hashParts[1] || '')
+    const pageIdFromUrl = urlParams.get('page')
 
+    const project = getProject(id)
     const pages = getProjectPages(id)
     const currentPageId = getSelectedPageId(id)
+
+    // Sync page selection from URL
+    useEffect(() => {
+        if (pageIdFromUrl && pages.length > 0 && pageIdFromUrl !== currentPageId) {
+            const pageExists = pages.some(p => p.id === pageIdFromUrl)
+            if (pageExists) {
+                selectPage(id, pageIdFromUrl)
+            }
+        }
+    }, [pageIdFromUrl, pages, id, currentPageId, selectPage])
+
     const legacyRows = getProjectRows(id)
 
     const allRows = pages.length > 0 && currentPageId
         ? getPageRows(id, currentPageId)
         : legacyRows
 
-    // Apply filters
+    // Apply search filter only
     const rows = allRows.filter(row => {
-        const matchesStatus = statusFilter === "all" || row.status === statusFilter
         const matchesSearch = !searchQuery ||
             (row.en || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (row.my || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (row.zh || '').toLowerCase().includes(searchQuery.toLowerCase())
-        return matchesStatus && matchesSearch
+        return matchesSearch
     })
 
     const selectedRowIds = getSelectedRowIds(id)
@@ -104,57 +86,13 @@ export default function ProjectView({ projectId }) {
                 <h2 className="text-xl font-semibold mb-2">Project Not Found</h2>
                 <p className="text-muted-foreground mb-4">The project you're looking for doesn't exist.</p>
                 <Button variant="outline" onClick={() => window.location.hash = '#projects'}>
-                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to Projects
+                    Back to Projects
                 </Button>
             </div>
         )
     }
 
-    // Calculate stats
-    const totalRows = allRows.length
-    const translatedRows = allRows.filter(r => r.my && r.zh).length
-    const pendingReview = allRows.filter(r => r.status === 'review').length
-    const progress = totalRows > 0 ? Math.round((translatedRows / totalRows) * 100) : 0
-
     // Handlers
-    const handleCellClick = (rowId, field, currentValue) => {
-        setEditingCell({ rowId, field })
-        setEditValue(currentValue || "")
-    }
-
-    const handleCellSave = () => {
-        if (!editingCell) return
-        const row = allRows.find(r => r.id === editingCell.rowId)
-        if (row) {
-            const updates = { [editingCell.field]: editValue }
-            const newMy = editingCell.field === 'my' ? editValue : row.my
-            const newZh = editingCell.field === 'zh' ? editValue : row.zh
-            if (newMy && newZh) {
-                updates.status = 'completed'
-            } else if (newMy || newZh) {
-                updates.status = 'review'
-            }
-            updateProjectRow(id, editingCell.rowId, updates)
-        }
-        setEditingCell(null)
-        setEditValue("")
-    }
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            handleCellSave()
-        } else if (e.key === 'Escape') {
-            setEditingCell(null)
-            setEditValue("")
-        }
-    }
-
-    const handleTranslateWithTemplate = (template) => {
-        translateSelectedRows(id, template)
-        setShowTemplateDropdown(false)
-    }
-
     const handleSelectAll = () => {
         if (selectedCount === rows.length) {
             deselectAllRows(id)
@@ -165,12 +103,10 @@ export default function ProjectView({ projectId }) {
 
     const handleExport = () => {
         const exportData = allRows.map(row => ({
-            'Source': row.source || row.en,
             'English': row.en,
             'Bahasa Malaysia': row.my,
             '中文': row.zh,
             'Status': row.status,
-            'Template Used': row.templateUsed || ''
         }))
         const ws = XLSX.utils.json_to_sheet(exportData)
         const wb = XLSX.utils.book_new()
@@ -184,20 +120,15 @@ export default function ProjectView({ projectId }) {
 
         setIsImporting(true)
         try {
-            // Use robust parsing from lib
             const parsedData = await parseExcelFile(file)
-            let totalRows = 0
-
             for (const [sheetName, sheetData] of Object.entries(parsedData)) {
-                // Map to project internal format
                 const newRows = sheetData.entries.map((entry, idx) => ({
                     key: `row_${Date.now()}_${idx}`,
                     en: entry.english || '',
                     my: entry.malay || '',
                     zh: entry.chinese || '',
                     status: 'pending',
-                    source: entry.english || '' // Backup source
-                })).filter(row => row.en) // Only keep rows with source text
+                })).filter(row => row.en)
 
                 if (newRows.length > 0) {
                     if (typeof addProjectPage === 'function') {
@@ -205,7 +136,6 @@ export default function ProjectView({ projectId }) {
                     } else {
                         await addProjectRows(id, newRows)
                     }
-                    totalRows += newRows.length
                 }
             }
         } catch (error) {
@@ -216,54 +146,59 @@ export default function ProjectView({ projectId }) {
         }
     }
 
-    const handleAddRow = async () => {
-        if (!newRowText.trim()) return
+    // Handle inline row addition
+    const handleStartAddRow = () => {
+        setIsAddingRow(true)
+        setNewRowData({ en: '', my: '', zh: '' })
+        // Focus the input after render
+        setTimeout(() => newRowInputRef.current?.focus(), 50)
+    }
+
+    const handleSaveNewRow = async () => {
+        if (!newRowData.en.trim()) {
+            setIsAddingRow(false)
+            return
+        }
         const newRow = {
             key: `row_${Date.now()}`,
-            en: newRowText.trim(),
-            my: '',
-            zh: '',
-            status: 'pending',
+            en: newRowData.en.trim(),
+            my: newRowData.my.trim(),
+            zh: newRowData.zh.trim(),
+            status: 'draft',  // New rows start as draft
+            promptId: 'default',  // Default prompt assignment
         }
-        // Use page-specific add if project has pages, otherwise use legacy
         if (pages.length > 0 && currentPageId) {
             await addPageRows(id, currentPageId, [newRow])
         } else {
             await addProjectRows(id, [newRow])
         }
-        setNewRowText('')
-        setShowAddRowModal(false)
+        setNewRowData({ en: '', my: '', zh: '' })
+        setIsAddingRow(false)
     }
 
-    // Approve selected rows (mark as completed)
-    const handleApproveSelected = () => {
-        selectedRowIds.forEach(rowId => {
-            updateProjectRow(id, rowId, { status: 'completed' })
-        })
-        deselectAllRows(id)
+    const handleCancelAddRow = () => {
+        setIsAddingRow(false)
+        setNewRowData({ en: '', my: '', zh: '' })
     }
 
-    // Reject selected rows (mark as pending)
-    const handleRejectSelected = () => {
-        selectedRowIds.forEach(rowId => {
-            updateProjectRow(id, rowId, { status: 'pending' })
-        })
-        deselectAllRows(id)
-    }
-
-    // Delete selected rows
-    const handleDeleteSelected = async () => {
-        if (!confirm(`Are you sure you want to delete ${selectedRowIds.size} row(s)? This action cannot be undone.`)) {
-            return
+    // Handle Enter key to save, Escape to cancel
+    const handleNewRowKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSaveNewRow()
+        } else if (e.key === 'Escape') {
+            handleCancelAddRow()
         }
-        await deleteRows(id, Array.from(selectedRowIds))
     }
 
-    // Get review items (rows with status 'review')
-    const reviewItems = allRows.filter(r => r.status === 'review')
+    const getPromptName = (promptId) => {
+        if (!promptId) return null
+        const prompt = templates.find(t => t.id === promptId)
+        return prompt?.name || null
+    }
 
     return (
-        <div className="space-y-6 w-full">
+        <div className="w-full">
             <input
                 type="file"
                 ref={fileInputRef}
@@ -272,352 +207,436 @@ export default function ProjectView({ projectId }) {
                 className="hidden"
             />
 
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                    <h1 className="text-xl font-semibold text-foreground">{project.name}</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {project.sourceLanguage} → {project.targetLanguages?.join(", ")}
-                    </p>
-                </div>
+            {/* Page Title - Figma Exact: Shows page name when project has multiple sheets */}
+            <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '4px', color: 'hsl(222, 47%, 11%)' }}>
+                {pages.length > 1 && currentPageId
+                    ? pages.find(p => p.id === currentPageId)?.name || project.name
+                    : project.name
+                }
+            </h1>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                    {pages.length > 0 && (
-                        <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto">
-                            {pages.map((page) => (
-                                <button
-                                    key={page.id}
-                                    onClick={() => selectPage(id, page.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${currentPageId === page.id
-                                        ? 'bg-card text-foreground shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                        }`}
-                                >
-                                    {page.name}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
-                        {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    </Button>
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setShowAddRowModal(true)}>
-                        <Plus className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={handleExport}>
-                        <Download className="w-4 h-4" />
-                    </Button>
-                </div>
-            </div>
+            {/* Action Bar - Figma Exact Order: Search, Filters, Import, Export, Translate all */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
+                <span style={{ fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                    {selectedCount > 0 ? `${selectedCount} row(s) selected` : `${rows.length} row(s)`}
+                </span>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-xl p-4 bg-card border">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                        <FileSpreadsheet className="w-3.5 h-3.5" /> Total
-                    </div>
-                    <span className="text-2xl font-light">{totalRows}</span>
-                </div>
-                <div className="rounded-xl p-4 bg-card border">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> Translated
-                    </div>
-                    <span className="text-2xl font-light">{translatedRows}</span>
-                </div>
-                <div className="rounded-xl p-4 bg-card border">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                        <Clock className="w-3.5 h-3.5" /> Review
-                    </div>
-                    <span className="text-2xl font-light">{pendingReview}</span>
-                </div>
-                <div className="rounded-xl p-4 bg-card border">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                        <Languages className="w-3.5 h-3.5" /> Progress
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-2xl font-light">{progress}%</span>
-                        <Progress value={progress} className="flex-1 h-1.5" />
-                    </div>
-                </div>
-            </div>
-
-            {/* View Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-fit">
-                <TabsList className="grid w-full grid-cols-2 h-9 p-1 rounded-lg">
-                    <TabsTrigger value="translation" className="rounded-md text-xs gap-1.5">
-                        <Languages className="w-3.5 h-3.5" /> Translation
-                    </TabsTrigger>
-                    <TabsTrigger value="review" className="rounded-md text-xs gap-1.5">
-                        <Clock className="w-3.5 h-3.5" /> Review
-                        {reviewItems.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
-                                {reviewItems.length}
-                            </span>
-                        )}
-                    </TabsTrigger>
-                </TabsList>
-            </Tabs>
-
-            {/* Selection Toolbar */}
-            {selectedCount > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
-                    <span className="text-sm font-medium">{selectedCount} selected</span>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => deselectAllRows(id)}>Clear</Button>
-
-                        <div className="h-4 w-px bg-border/50 mx-2" />
-
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            onClick={handleDeleteSelected}
-                        >
-                            <Trash2 className="w-4 h-4 mr-1.5" /> Delete
-                        </Button>
-
-                        <div className="h-4 w-px bg-border/50 mx-2" />
-
-                        {/* Review Actions (only in review mode for managers+) */}
-                        {activeTab === "review" && canDo(ACTIONS.APPROVE_TRANSLATION) && (
-                            <>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-xl gap-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                    onClick={handleApproveSelected}
-                                >
-                                    <Check className="w-4 h-4" /> Approve
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-xl gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={handleRejectSelected}
-                                >
-                                    <XCircle className="w-4 h-4" /> Reject
-                                </Button>
-                            </>
-                        )}
-
-                        {/* Translation Actions (only in translation mode) */}
-                        {activeTab === "translation" && (
-                            <div className="relative">
-                                <Button
-                                    size="sm"
-                                    className="rounded-xl gap-2"
-                                    onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                                    disabled={isProcessing}
-                                >
-                                    {isProcessing ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Translating {queueProgress.current}/{queueProgress.total}...</>
-                                    ) : (
-                                        <><Sparkles className="w-4 h-4" /> Translate</>
-                                    )}
-                                </Button>
-                                {showTemplateDropdown && (
-                                    <div className="absolute right-0 top-full mt-2 w-56 bg-popover border rounded-xl shadow-lg z-50 p-2">
-                                        <p className="text-xs text-muted-foreground px-2 py-1 mb-1">Select Prompt</p>
-                                        {templates.map(template => (
-                                            <button
-                                                key={template.id}
-                                                onClick={() => handleTranslateWithTemplate(template)}
-                                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-accent text-sm"
-                                            >
-                                                {template.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Queue Progress */}
-            {isProcessing && queueProgress.total > 0 && (
-                <div className="flex items-center gap-4 p-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
-                    <Loader2 className="w-5 h-5 animate-spin text-violet-600 flex-shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-sm font-medium">Batch {queueProgress.current + 1}/{queueProgress.total}</p>
-                        <Progress value={(queueProgress.current / queueProgress.total) * 100} className="h-1.5 mt-1" />
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={cancelTranslationQueue}>
-                        <X className="w-4 h-4" />
-                    </Button>
-                </div>
-            )}
-
-            {/* Filter Bar */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                    <button onClick={handleSelectAll} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-                        {selectedCount === rows.length && rows.length > 0 ? (
-                            <CheckSquare className="w-4 h-4 text-primary" />
-                        ) : (
-                            <Square className="w-4 h-4" />
-                        )}
-                        Select all
-                    </button>
-                    <span className="text-xs text-muted-foreground">({rows.length} items)</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    {/* Status Filter */}
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="h-8 px-3 rounded-lg border bg-background text-sm"
-                    >
-                        <option value="all">All Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="completed">Completed</option>
-                        <option value="review">Review</option>
-                        <option value="error">Error</option>
-                    </select>
-
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {/* Search */}
-                    <div className="relative">
-                        <Input
-                            placeholder="Search..."
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="text"
+                            placeholder="Search"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-8 w-40 pl-3 pr-8 rounded-lg text-sm"
+                            style={{
+                                borderRadius: '9999px',
+                                height: '32px',
+                                width: '140px',
+                                fontSize: '14px',
+                                padding: '0 12px 0 32px',
+                                border: '1px solid hsl(220, 13%, 91%)',
+                                outline: 'none',
+                                backgroundColor: 'white'
+                            }}
                         />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2">
-                                <X className="w-3.5 h-3.5 text-muted-foreground" />
-                            </button>
-                        )}
+                        <Filter style={{
+                            position: 'absolute',
+                            left: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '14px',
+                            height: '14px',
+                            color: 'hsl(220, 9%, 46%)'
+                        }} />
                     </div>
 
-                    {/* View Toggle */}
-                    <div className="flex items-center bg-muted/50 rounded-lg p-0.5">
-                        <button
-                            onClick={() => setViewMode("inline")}
-                            className={`p-1.5 rounded-md ${viewMode === "inline" ? "bg-card shadow-sm" : ""}`}
-                        >
-                            <List className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode("table")}
-                            className={`p-1.5 rounded-md ${viewMode === "table" ? "bg-card shadow-sm" : ""}`}
-                        >
-                            <Table className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {/* Filters Button */}
+                    <button
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            borderRadius: '9999px',
+                            height: '32px',
+                            padding: '0 16px',
+                            fontSize: '14px',
+                            fontWeight: 400,
+                            border: '1px solid hsl(220, 13%, 91%)',
+                            backgroundColor: 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Filter style={{ width: '16px', height: '16px' }} /> Filters
+                    </button>
+
+                    {/* Import Button */}
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            borderRadius: '9999px',
+                            height: '32px',
+                            padding: '0 16px',
+                            fontSize: '14px',
+                            fontWeight: 400,
+                            border: '1px solid hsl(220, 13%, 91%)',
+                            backgroundColor: 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Upload style={{ width: '16px', height: '16px' }} /> Import
+                    </button>
+
+                    {/* Export Button */}
+                    <button
+                        onClick={handleExport}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            borderRadius: '9999px',
+                            height: '32px',
+                            padding: '0 16px',
+                            fontSize: '14px',
+                            fontWeight: 400,
+                            border: '1px solid hsl(220, 13%, 91%)',
+                            backgroundColor: 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Download style={{ width: '16px', height: '16px' }} /> Export
+                    </button>
+
+                    {/* Translate all - Pink CTA */}
+                    <button
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            borderRadius: '9999px',
+                            height: '32px',
+                            padding: '0 16px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            border: 'none',
+                            backgroundColor: 'hsl(340, 82%, 59%)',
+                            color: 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <span style={{ fontSize: '14px' }}>✦</span> Translate all
+                    </button>
                 </div>
             </div>
 
-            {/* Content */}
-            {viewMode === "inline" ? (
-                <div className="space-y-2">
-                    {rows.map(row => (
-                        <InlineRow
-                            key={row.id}
-                            row={row}
-                            isSelected={selectedRowIds.has(row.id)}
-                            editingCell={editingCell}
-                            editValue={editValue}
-                            onToggleSelection={() => toggleRowSelection(id, row.id)}
-                            onCellClick={handleCellClick}
-                            onEditChange={setEditValue}
-                            onCellSave={handleCellSave}
-                            onKeyDown={handleKeyDown}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="rounded-xl border overflow-hidden">
-                    <table className="w-full">
-                        <thead className="bg-muted/50">
-                            <tr className="border-b">
-                                <th className="p-3 w-10"></th>
-                                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Source (EN)</th>
-                                <th className="p-3 text-left text-xs font-medium text-muted-foreground">🇨🇳 Chinese</th>
-                                <th className="p-3 text-left text-xs font-medium text-muted-foreground">🇲🇾 Malay</th>
-                                <th className="p-3 text-left text-xs font-medium text-muted-foreground w-28">Status</th>
+            {/* Table - Figma Exact */}
+            <div style={{ borderRadius: '8px', border: '1px solid hsl(220, 13%, 91%)', overflow: 'hidden', backgroundColor: 'white' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid hsl(220, 13%, 91%)', backgroundColor: 'hsl(220, 14%, 96%, 0.3)' }}>
+                            <th style={{ width: '48px', padding: '16px', textAlign: 'left' }}>
+                                <button onClick={handleSelectAll} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {selectedCount === rows.length && rows.length > 0 ? (
+                                        <CheckSquare style={{ width: '16px', height: '16px', color: 'hsl(340, 82%, 59%)' }} />
+                                    ) : (
+                                        <Square style={{ width: '16px', height: '16px', color: 'hsl(220, 9%, 46%, 0.4)' }} />
+                                    )}
+                                </button>
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '25%' }}>
+                                English <span style={{ color: 'hsl(220, 9%, 46%, 0.4)', marginLeft: '4px' }}>↕</span>
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '20%' }}>
+                                Bahasa Malaysia <span style={{ color: 'hsl(220, 9%, 46%, 0.4)', marginLeft: '4px' }}>↕</span>
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '15%' }}>
+                                Chinese
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '10%' }}>
+                                Status
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '15%' }}>
+                                Prompt Category
+                            </th>
+                            <th style={{ padding: '16px', textAlign: 'left', fontSize: '14px', fontWeight: 400, color: 'hsl(220, 9%, 46%)', width: '10%' }}>
+                                Action
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row) => (
+                            <tr
+                                key={row.id}
+                                style={{
+                                    borderBottom: '1px solid hsl(220, 13%, 91%)',
+                                    backgroundColor: selectedRowIds.has(row.id) ? 'hsl(340, 82%, 59%, 0.05)' : 'transparent'
+                                }}
+                            >
+                                <td style={{ width: '48px', padding: '16px' }}>
+                                    <button onClick={() => toggleRowSelection(id, row.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {selectedRowIds.has(row.id) ? (
+                                            <CheckSquare style={{ width: '16px', height: '16px', color: 'hsl(340, 82%, 59%)' }} />
+                                        ) : (
+                                            <Square style={{ width: '16px', height: '16px', color: 'hsl(220, 9%, 46%, 0.4)' }} />
+                                        )}
+                                    </button>
+                                </td>
+                                <td style={{ padding: '16px', fontSize: '14px', color: 'hsl(222, 47%, 11%)' }}>
+                                    {row.en || ''}
+                                </td>
+                                <td style={{ padding: '16px', fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                                    {row.my || '—'}
+                                </td>
+                                <td style={{ padding: '16px', fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                                    {row.zh || '—'}
+                                </td>
+                                <td style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{
+                                            width: '6px',
+                                            height: '6px',
+                                            borderRadius: '50%',
+                                            backgroundColor: row.status === 'completed' ? '#10b981' :
+                                                row.status === 'review' ? '#f59e0b' :
+                                                    row.status === 'error' ? '#ef4444' : '#a1a1aa'
+                                        }} />
+                                        <span style={{ fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                                            {row.status === 'pending' ? 'Draft' :
+                                                row.status === 'completed' ? 'Done' :
+                                                    row.status || 'Draft'}
+                                        </span>
+                                    </div>
+                                </td>
+                                {/* Prompt Category - Plain text style per Figma */}
+                                <td style={{ padding: '16px', fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                                    {getPromptName(row.promptId) || 'Default'}
+                                </td>
+                                {/* Action icons - AI, Check, X per Figma */}
+                                <td style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <button
+                                            title="Translate with AI"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '4px',
+                                                border: 'none',
+                                                backgroundColor: 'transparent',
+                                                cursor: 'pointer',
+                                                color: 'hsl(220, 9%, 46%)'
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '14px' }}>✦</span>
+                                        </button>
+                                        <button
+                                            title="Approve"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '4px',
+                                                border: 'none',
+                                                backgroundColor: 'transparent',
+                                                cursor: 'pointer',
+                                                color: 'hsl(220, 9%, 46%)'
+                                            }}
+                                        >
+                                            ✓
+                                        </button>
+                                        <button
+                                            title="Reject"
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '4px',
+                                                border: 'none',
+                                                backgroundColor: 'transparent',
+                                                cursor: 'pointer',
+                                                color: 'hsl(220, 9%, 46%)'
+                                            }}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map(row => (
-                                <TableRow
-                                    key={row.id}
-                                    row={row}
-                                    isSelected={selectedRowIds.has(row.id)}
-                                    editingCell={editingCell}
-                                    editValue={editValue}
-                                    onToggleSelection={() => toggleRowSelection(id, row.id)}
-                                    onCellClick={handleCellClick}
-                                    onEditChange={setEditValue}
-                                    onCellSave={handleCellSave}
-                                    onKeyDown={handleKeyDown}
-                                />
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                        ))}
 
-            {/* Empty State */}
-            {rows.length === 0 && (
-                <div className="py-16 text-center rounded-2xl border-2 border-dashed">
-                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FileSpreadsheet className="w-6 h-6 text-muted-foreground" />
+                        {/* Inline Add Row */}
+                        {isAddingRow && (
+                            <tr style={{ borderBottom: '1px solid hsl(220, 13%, 91%)', backgroundColor: 'hsl(340, 82%, 59%, 0.03)' }}>
+                                <td style={{ width: '48px', padding: '16px' }}>
+                                    <Plus style={{ width: '16px', height: '16px', color: 'hsl(340, 82%, 59%)' }} />
+                                </td>
+                                <td style={{ padding: '8px 16px' }}>
+                                    <input
+                                        ref={newRowInputRef}
+                                        type="text"
+                                        placeholder="Enter English text..."
+                                        value={newRowData.en}
+                                        onChange={(e) => setNewRowData(prev => ({ ...prev, en: e.target.value }))}
+                                        onKeyDown={handleNewRowKeyDown}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            fontSize: '14px',
+                                            border: '1px solid hsl(340, 82%, 59%, 0.3)',
+                                            borderRadius: '6px',
+                                            outline: 'none',
+                                            backgroundColor: 'white'
+                                        }}
+                                    />
+                                </td>
+                                <td style={{ padding: '8px 16px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Bahasa Malaysia (optional)"
+                                        value={newRowData.my}
+                                        onChange={(e) => setNewRowData(prev => ({ ...prev, my: e.target.value }))}
+                                        onKeyDown={handleNewRowKeyDown}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            fontSize: '14px',
+                                            border: '1px solid hsl(220, 13%, 91%)',
+                                            borderRadius: '6px',
+                                            outline: 'none',
+                                            backgroundColor: 'white'
+                                        }}
+                                    />
+                                </td>
+                                <td style={{ padding: '8px 16px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Chinese (optional)"
+                                        value={newRowData.zh}
+                                        onChange={(e) => setNewRowData(prev => ({ ...prev, zh: e.target.value }))}
+                                        onKeyDown={handleNewRowKeyDown}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            fontSize: '14px',
+                                            border: '1px solid hsl(220, 13%, 91%)',
+                                            borderRadius: '6px',
+                                            outline: 'none',
+                                            backgroundColor: 'white'
+                                        }}
+                                    />
+                                </td>
+                                <td style={{ padding: '16px' }}>
+                                    <span style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>New</span>
+                                </td>
+                                <td style={{ padding: '16px' }}>
+                                    <span style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>—</span>
+                                </td>
+                                <td style={{ padding: '8px 16px' }}>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button
+                                            onClick={handleSaveNewRow}
+                                            disabled={!newRowData.en.trim()}
+                                            style={{
+                                                padding: '6px 12px',
+                                                fontSize: '12px',
+                                                fontWeight: 500,
+                                                borderRadius: '6px',
+                                                border: 'none',
+                                                backgroundColor: newRowData.en.trim() ? 'hsl(340, 82%, 59%)' : 'hsl(220, 13%, 91%)',
+                                                color: newRowData.en.trim() ? 'white' : 'hsl(220, 9%, 46%)',
+                                                cursor: newRowData.en.trim() ? 'pointer' : 'not-allowed'
+                                            }}
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={handleCancelAddRow}
+                                            style={{
+                                                padding: '6px 12px',
+                                                fontSize: '12px',
+                                                borderRadius: '6px',
+                                                border: '1px solid hsl(220, 13%, 91%)',
+                                                backgroundColor: 'white',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+
+                {/* + Add new row - at bottom of table per Figma */}
+                {!isAddingRow && (
+                    <button
+                        onClick={handleStartAddRow}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '12px 16px',
+                            width: '100%',
+                            fontSize: '14px',
+                            color: 'hsl(220, 9%, 46%)',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            borderTop: '1px solid hsl(220, 13%, 91%)',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                        }}
+                    >
+                        <Plus style={{ width: '16px', height: '16px' }} /> Add new row
+                    </button>
+                )}
+            </div>
+
+            {/* Empty State - Matches Figma Image 2 */}
+            {rows.length === 0 && !isAddingRow && (
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '80px 20px',
+                    textAlign: 'center'
+                }}>
+                    <div style={{
+                        width: '64px',
+                        height: '64px',
+                        backgroundColor: 'hsl(220, 14%, 96%)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '16px'
+                    }}>
+                        <FileSpreadsheet style={{ width: '28px', height: '28px', color: 'hsl(220, 9%, 46%)' }} />
                     </div>
-                    <h3 className="font-semibold mb-2">No content found</h3>
-                    <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                        {statusFilter !== "all" || searchQuery
-                            ? "Try adjusting your filters or search query."
-                            : "Import an Excel file to add content."}
+                    <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'hsl(222, 47%, 11%)', marginBottom: '4px' }}>
+                        No content found.
+                    </h3>
+                    <p style={{ fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                        Add a new row or import a existing file.
                     </p>
                 </div>
             )}
 
-            {/* Footer */}
-            <div className="text-sm text-muted-foreground">
-                Last updated: {project.lastUpdated || 'Recently'}
-            </div>
 
-            {/* Dropdowns backdrop */}
-            {showTemplateDropdown && (
-                <div className="fixed inset-0 z-40" onClick={() => setShowTemplateDropdown(false)} />
-            )}
 
-            {/* Add Row Modal */}
-            {showAddRowModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-card rounded-2xl shadow-xl w-full max-w-md">
-                        <div className="flex items-center justify-between p-5 border-b">
-                            <h2 className="text-lg font-semibold">Add Translation Row</h2>
-                            <button onClick={() => setShowAddRowModal(false)} className="p-2 hover:bg-muted rounded-lg">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">English Source Text</label>
-                                <textarea
-                                    placeholder="Enter the English text..."
-                                    value={newRowText}
-                                    onChange={(e) => setNewRowText(e.target.value)}
-                                    className="w-full min-h-[100px] p-3 rounded-xl border bg-background resize-none"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="flex gap-3">
-                                <Button variant="outline" className="flex-1" onClick={() => setShowAddRowModal(false)}>
-                                    Cancel
-                                </Button>
-                                <Button className="flex-1" onClick={handleAddRow} disabled={!newRowText.trim()}>
-                                    <Plus className="w-4 h-4 mr-2" /> Add Row
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+
         </div>
     )
 }

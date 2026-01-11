@@ -28,6 +28,29 @@ export async function getGlossaryTerms() {
     }
 }
 
+/**
+ * Get only approved glossary terms for use in translation API
+ * Terms must have status === 'approved' to be included
+ * @returns {Promise<Array>} Array of approved glossary terms
+ */
+export async function getApprovedGlossaryTerms() {
+    try {
+        const q = query(collection(db, 'glossary'), orderBy('term', 'asc'))
+        const snapshot = await getDocs(q)
+        const allTerms = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }))
+        // Filter for approved terms only
+        const approvedTerms = allTerms.filter(term => term.status === 'approved')
+        console.log(`📚 [Glossary] Fetched ${approvedTerms.length} approved terms (${allTerms.length} total)`)
+        return approvedTerms
+    } catch (error) {
+        console.error('Error fetching approved glossary terms:', error)
+        return []
+    }
+}
+
 export async function createGlossaryTerm(termData) {
     try {
         const docRef = await addDoc(collection(db, 'glossary'), {
@@ -39,6 +62,31 @@ export async function createGlossaryTerm(termData) {
         return { id: docRef.id, ...termData }
     } catch (error) {
         console.error('Error creating glossary term:', error)
+        throw error
+    }
+}
+
+// Batch create multiple glossary terms (for Excel import)
+export async function createGlossaryTerms(termsData) {
+    try {
+        const batch = writeBatch(db)
+        const createdTerms = []
+
+        termsData.forEach(termData => {
+            const docRef = doc(collection(db, 'glossary'))
+            batch.set(docRef, {
+                ...termData,
+                createdAt: serverTimestamp(),
+                lastModified: serverTimestamp()
+            })
+            createdTerms.push({ id: docRef.id, ...termData })
+        })
+
+        await batch.commit()
+        console.log('✅ [Firestore] Created', termsData.length, 'glossary terms')
+        return createdTerms
+    } catch (error) {
+        console.error('Error creating glossary terms:', error)
         throw error
     }
 }
@@ -80,16 +128,30 @@ export async function deleteGlossaryTerms(termIds) {
         throw error
     }
 }
+// Seeding flag to prevent race conditions (React StrictMode runs effects twice)
+let isSeedingGlossary = false
 
 export async function seedDefaultGlossary() {
+    // Prevent concurrent seeding (race condition from StrictMode)
+    if (isSeedingGlossary) {
+        console.log('⏳ [Firestore] Glossary seeding already in progress, skipping...')
+        return
+    }
+
     const existing = await getGlossaryTerms()
     if (existing.length > 0) return
 
+    isSeedingGlossary = true
     console.log('📦 [Firestore] Seeding default glossary terms...')
-    for (const term of defaultGlossaryTerms) {
-        await createGlossaryTerm(term)
+
+    try {
+        for (const term of defaultGlossaryTerms) {
+            await createGlossaryTerm(term)
+        }
+        console.log('✅ [Firestore] Seeded default glossary terms')
+    } finally {
+        isSeedingGlossary = false
     }
-    console.log('✅ [Firestore] Seeded default glossary terms')
 }
 
 // ==========================================

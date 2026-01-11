@@ -75,10 +75,10 @@ export default function TableRow({
                 <p className="text-sm truncate">{row.en || row.source}</p>
             </td>
             <td className="p-3 max-w-xs">
-                <EditableTableCell lang="zh" value={row.zh} />
+                <EditableTableCell lang="my" value={row.my} />
             </td>
             <td className="p-3 max-w-xs">
-                <EditableTableCell lang="my" value={row.my} />
+                <EditableTableCell lang="zh" value={row.zh} />
             </td>
             <td className="p-3 w-28">
                 <Badge variant="secondary" className={`text-xs ${statusColors[row.status] || statusColors.pending}`}>
