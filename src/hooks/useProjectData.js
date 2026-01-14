@@ -102,6 +102,19 @@ export function useProjectData() {
 
     // Update a single row
     const updateProjectRow = useCallback((projectId, rowId, updates) => {
+        // First, determine which page contains this row (BEFORE any state updates)
+        let pageIdForRow = null
+        const projectData = projectPages[projectId]
+        if (projectData?.pageRows) {
+            for (const pageId in projectData.pageRows) {
+                const hasRow = (projectData.pageRows[pageId] || []).some(r => r.id === rowId)
+                if (hasRow) {
+                    pageIdForRow = pageId
+                    break
+                }
+            }
+        }
+
         // Update legacy flat rows
         setProjectRows(prev => ({
             ...prev,
@@ -111,33 +124,39 @@ export function useProjectData() {
         }))
 
         // Also update page-specific rows
-        setProjectPages(prev => {
-            const projectData = prev[projectId]
-            if (!projectData) return prev
+        if (pageIdForRow) {
+            setProjectPages(prev => {
+                const projData = prev[projectId]
+                if (!projData) return prev
 
-            const updatedPageRows = {}
-            let found = false
-            for (const pageId in projectData.pageRows) {
-                updatedPageRows[pageId] = (projectData.pageRows[pageId] || []).map(row => {
-                    if (row.id === rowId) {
-                        found = true
-                        return { ...row, ...updates }
+                return {
+                    ...prev,
+                    [projectId]: {
+                        ...projData,
+                        pageRows: {
+                            ...projData.pageRows,
+                            [pageIdForRow]: (projData.pageRows[pageIdForRow] || []).map(row =>
+                                row.id === rowId ? { ...row, ...updates } : row
+                            )
+                        }
                     }
-                    return row
-                })
-            }
-            if (!found) return prev
-            return {
-                ...prev,
-                [projectId]: { ...projectData, pageRows: updatedPageRows }
-            }
-        })
-
-        // Sync to Firestore
-        if (dataSource === 'firestore') {
-            firestoreService.updateProjectRow(projectId, rowId, updates).catch(console.error)
+                }
+            })
         }
-    }, [dataSource])
+
+        // Sync to Firestore - use the pageId we already determined
+        if (dataSource === 'firestore') {
+            if (pageIdForRow) {
+                // Row is in a page - use page-specific update
+                console.log(`✏️ [Firestore] Updating page row: project=${projectId}, page=${pageIdForRow}, row=${rowId}`)
+                firestoreService.updatePageRow(projectId, pageIdForRow, rowId, updates).catch(console.error)
+            } else {
+                // Row is in legacy flat structure
+                console.log(`✏️ [Firestore] Updating legacy row: project=${projectId}, row=${rowId}`)
+                firestoreService.updateProjectRow(projectId, rowId, updates).catch(console.error)
+            }
+        }
+    }, [dataSource, projectPages])
 
     // Update multiple rows at once
     const updateProjectRows = useCallback((projectId, rowUpdates) => {

@@ -16,3 +16,8 @@ npm-debug.log*
 
 # Archive (large folder, don't need in git)
 _archive/
+_archived/
+
+# Documentation and text files (not needed in git)
+*.md
+*.txt

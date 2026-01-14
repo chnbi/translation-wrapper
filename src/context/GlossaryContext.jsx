@@ -20,21 +20,13 @@ export function GlossaryProvider({ children }) {
         async function loadData() {
             try {
                 console.log('🔄 [Firestore] Loading glossary terms...')
-                let firestoreTerms = await firestoreService.getGlossaryTerms()
-
-                if (firestoreTerms.length === 0) {
-                    // Seed default glossary if empty
-                    console.log('📦 [Firestore] Empty glossary, seeding defaults...')
-                    await firestoreService.seedDefaultGlossary()
-                    firestoreTerms = await firestoreService.getGlossaryTerms()
-                }
+                const firestoreTerms = await firestoreService.getGlossaryTerms()
 
                 // Load categories
                 const firestoreCategories = await firestoreService.getGlossaryCategories()
-                // Fallback to default categories if none exist (legacy support)
                 const finalCategories = firestoreCategories.length > 0
                     ? firestoreCategories
-                    : [{ id: 'gen', name: 'General' }, { id: 'ui', name: 'UI' }, { id: 'mkt', name: 'Marketing' }]
+                    : [] // No fallback categories
 
                 setTerms(firestoreTerms)
                 setCategories(finalCategories)

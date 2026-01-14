@@ -71,9 +71,8 @@ export function AuthProvider({ children }) {
         loading,
         signIn,
         signOut,
-        isAdmin: userRole === 'admin',
-        isEditor: userRole === 'editor' || userRole === 'admin',
-        isViewer: !!userRole
+        isManager: userRole === 'manager',
+        isEditor: userRole === 'editor' || userRole === 'manager',
     }
 
     return (

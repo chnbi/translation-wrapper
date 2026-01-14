@@ -1,66 +1,22 @@
-# Translation Wrapper
+Project
 
-Purpose
-- To create a translation wrapper tool for a creative content team in telecommunciations company. They utilize this tool for translations to help generate content for the company's website, or new campaigns.
+1. new project, no rows yet
+search -- import
 
-As-is Flow
-- Copywriters come out with the content for a new campaign/ start a new language content.
-- They need help in translating it into multilingual.
-- They use AI for translaitons, but they dont sound natural or very intuitive.
-- All AI translations needs human approval before being used.
+2. added rows/ import rows (translation not done)
+search -- filter-- import -- translate (pink)
 
-To-Be Flow
-- Copywriters utilize the wrapper to generate more contextual-suitable content.
-- They will make translations with the help of prompting and AI-assistance.
+3. when all rows translated (translation done)
+search -- filter -- import -- send for review (pink)
 
-# Supported Languages
-- English (Main Source)
-- Bahasa Malaysia
-- Simplified Chinese
+4. select rows (translation not done)
+search -- filter -- import -- translate (pink)
 
-# Technology Stack
-- Frontend: React + Vite + TailwindCSS + ShadCN
-- Backend: Firebase (Firestore, Auth)
-- AI: Google Gemini API (@google/genai)
-- Files: xlsx library (Excel import/export)
+5. select rows (all translation done)
+search -- filter -- import -- translate again -- send for review (pink)
+- if select "send for review" button, row status change to in review
 
-# Core Features
-## AI-ASSISTED TRANSLATION
-- Gemini API integration
-- Batch processing: 10 rows per API call
-- Rate limit handling: exponential backoff on HTTP 429
-- Queue management: stop/cancel functionality
-- Dynamic model selection via VITE_GEMINI_MODEL env var
-- Current model: gemini-2.0-flash
-
-## Review Work
-User Roles
-- Guest: Can only view projects and glossary.
-- Editor: Can create projects, do translations, edit translation, regenerate translations, but need approval in order to be used
-- Admin: Manage User roles and settings configurations
-- Manager: Has all the access of the above. Can approve/reject translations.
-
-User Flow
-- User enter Project Page through sidebar.
-- This is a page that stores all the centralizes glossaries that are used throughout all projects.
-- Users can choose to add new terms on their own or import form excel sheet.
-- Similarly, users can utilize AI for multilingual translation and go through the review workflow again.
-- Once approved, terms will be used throughout the translation in all projects to maintain consistency.
-
-Approval Page
-- Managers can utilize this page to bulk review and approve translations form both projects and glossaries. 
-
-
-## Glossary Management
-User Flow
-- User enter Glossary Page through sidebar.
-- This is a page that stores all the centralizes glossaries that are used throughout all projects.
-- Users can choose to add new terms on their own or import form excel sheet.
-- Similarly, users can utilize AI for multilingual translation and go through the review workflow again.
-- Once approved, terms will be used throughout the translation in all projects to maintain consistency.
-
-requirements:
-- the glossary needs to be used when the AI is generating translations.
-- they are only passed on when the glossary is 'approved'. if in review stage, it cannot be used yet.
-- implement a logic to pass on the glossary, but also consider the token usage of the API to prevent fast token usage.
+6.all rows are approved
+search -- filter -- import -- export
+- unless changes are made/edited, revert to (3)
 

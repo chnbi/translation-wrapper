@@ -8,8 +8,11 @@ import React from 'react'
 // ============================================
 
 export const COLORS = {
-    primary: '#EC407A',
-    primaryHover: '#D81B60',
+    // New Pink Color System (from CSS variables)
+    primary: '#FF0084',        // Main brand pink - hsl(329, 100%, 50%)
+    primaryHover: '#E60077',   // Darker for hover
+    secondary: '#FF4AA7',      // Secondary pink - hsl(329, 100%, 65%)
+    light: '#FFB9DD',          // Light pink - hsl(329, 100%, 86%)
     border: 'hsl(220, 13%, 91%)',
     textPrimary: 'hsl(222, 47%, 11%)',
     textSecondary: 'hsl(220, 9%, 46%)',
@@ -25,6 +28,16 @@ export const RADIUS = {
     lg: '24px',
     full: '9999px',
 }
+
+// Project Themes (Pastel backgrounds with matching icons)
+export const PROJECT_THEMES = [
+    { id: 'pink', color: '#FFE5EC', border: '#FFB6C1', iconColor: '#EC4899' },
+    { id: 'orange', color: '#FFF0E5', border: '#FFDAB9', iconColor: '#F97316' },
+    { id: 'yellow', color: '#FFFDE7', border: '#FFF59D', iconColor: '#CA8A04' },
+    { id: 'mint', color: '#E5F9F6', border: '#A7F3D0', iconColor: '#059669' },
+    { id: 'cyan', color: '#E5F6FF', border: '#BAE6FD', iconColor: '#0891B2' },
+    { id: 'purple', color: '#F3E5FF', border: '#D8B4FE', iconColor: '#7C3AED' },
+]
 
 // ============================================
 // FORM COMPONENTS
@@ -49,7 +62,7 @@ export function FormField({ label, required, children, style }) {
 }
 
 // Standard text input
-export function TextInput({ placeholder, value, onChange, required, ...props }) {
+export function TextInput({ placeholder, value, onChange, required, style, ...props }) {
     return (
         <input
             type="text"
@@ -66,6 +79,7 @@ export function TextInput({ placeholder, value, onChange, required, ...props }) 
                 outline: 'none',
                 backgroundColor: COLORS.white,
                 boxSizing: 'border-box',
+                ...style, // Merge user provided style last
             }}
             {...props}
         />
@@ -76,108 +90,71 @@ export function TextInput({ placeholder, value, onChange, required, ...props }) 
 // BUTTON COMPONENTS
 // ============================================
 
+// ============================================
+// BUTTON COMPONENTS
+// ============================================
+
+import { Button } from "./button"
+
 // Primary button (pink CTA)
-export function PrimaryButton({ children, onClick, disabled, type = 'button', style }) {
+export function PrimaryButton({ children, onClick, disabled, type = 'button', style, className }) {
     return (
-        <button
+        <Button
             type={type}
             onClick={onClick}
             disabled={disabled}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 24px',
-                fontSize: '12px',
-                fontWeight: 600,
-                borderRadius: RADIUS.full,
-                border: 'none',
-                backgroundColor: disabled ? COLORS.border : COLORS.primary,
-                color: disabled ? COLORS.textSecondary : COLORS.white,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.2s',
-                ...style,
-            }}
+            style={style}
+            className={className}
         >
             {children}
-        </button>
+        </Button>
     )
 }
 
 // Secondary/outline button
-export function SecondaryButton({ children, onClick, type = 'button', style }) {
+export function SecondaryButton({ children, onClick, type = 'button', style, className }) {
     return (
-        <button
+        <Button
+            variant="outline"
             type={type}
             onClick={onClick}
-            style={{
-                padding: '10px 24px',
-                fontSize: '14px',
-                fontWeight: 500,
-                borderRadius: RADIUS.full,
-                border: `1px solid ${COLORS.border}`,
-                backgroundColor: COLORS.white,
-                cursor: 'pointer',
-                color: COLORS.black,
-                transition: 'background-color 0.2s',
-                ...style,
-            }}
+            style={style}
+            className={className}
         >
             {children}
-        </button>
+        </Button>
     )
 }
 
 // Icon button (transparent background)
-export function IconButton({ children, onClick, title, style }) {
+export function IconButton({ children, onClick, title, style, className }) {
     return (
-        <button
+        <Button
+            variant="ghost"
+            size="icon"
             onClick={onClick}
             title={title}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                color: COLORS.black,
-                ...style,
-            }}
+            style={{ width: '32px', height: '32px', ...style }}
+            className={`h-8 w-8 ${className || ''}`}
         >
             {children}
-        </button>
+        </Button>
     )
 }
 
 // Pill button for action bar
-export function PillButton({ children, onClick, disabled, variant = 'outline', style }) {
-    const isOutline = variant === 'outline'
+export function PillButton({ children, onClick, disabled, variant = 'outline', style, className, type = 'button' }) {
     return (
-        <button
+        <Button
+            type={type}
+            variant={variant === 'outline' ? 'outline' : 'default'}
             onClick={onClick}
             disabled={disabled}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                borderRadius: RADIUS.full,
-                height: '32px',
-                padding: '0 16px',
-                fontSize: '14px',
-                fontWeight: 400,
-                border: isOutline ? `1px solid ${COLORS.border}` : 'none',
-                backgroundColor: isOutline ? COLORS.white : COLORS.primary,
-                color: isOutline ? COLORS.black : COLORS.white,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                ...style,
-            }}
+            style={style}
+            className={`rounded-full h-8 px-4 font-normal ${className || ''}`}
         >
             {children}
-        </button>
+        </Button>
     )
 }
 
@@ -340,3 +317,55 @@ export function TableActionButton({ children, onClick, title }) {
         </button>
     )
 }
+
+// ============================================
+// DROPDOWN COMPONENTS
+// ============================================
+
+// Custom styled select dropdown
+export function SelectDropdown({ value, onChange, options, placeholder, style }) {
+    return (
+        <div style={{ position: 'relative', ...style }}>
+            <select
+                value={value}
+                onChange={onChange}
+                style={{
+                    width: '100%',
+                    height: '44px',
+                    padding: '0 40px 0 16px',
+                    fontSize: '14px',
+                    borderRadius: RADIUS.md,
+                    border: `1px solid ${COLORS.border}`,
+                    outline: 'none',
+                    backgroundColor: COLORS.white,
+                    cursor: 'pointer',
+                    appearance: 'none',
+                    color: value ? COLORS.textPrimary : COLORS.textSecondary,
+                }}
+            >
+                {placeholder && <option value="">{placeholder}</option>}
+                {options.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
+            {/* Chevron icon */}
+            <div style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={COLORS.textSecondary} strokeWidth="2">
+                    <path d="M6 9l6 6 6-6" />
+                </svg>
+            </div>
+        </div>
+    )
+}
+

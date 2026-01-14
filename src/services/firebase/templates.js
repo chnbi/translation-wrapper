@@ -15,12 +15,18 @@ import { defaultPromptTemplates } from '@/data/defaults'
 
 export async function getTemplates() {
     try {
-        const q = query(collection(db, 'templates'), orderBy('createdAt', 'desc'))
-        const snapshot = await getDocs(q)
-        return snapshot.docs.map(doc => ({
+        // Fetch all templates (no orderBy to avoid index requirement)
+        const snapshot = await getDocs(collection(db, 'templates'))
+        const templates = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }))
+        // Sort client-side by createdAt (newest first), with default template always first
+        return templates.sort((a, b) => {
+            if (a.isDefault && !b.isDefault) return -1
+            if (!a.isDefault && b.isDefault) return 1
+            return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+        })
     } catch (error) {
         console.error('Error fetching templates:', error)
         return []

@@ -106,18 +106,19 @@ function AppWithRouting({ authContextValue }) {
         switch (path) {
             case '/':
             case '':
+                return { component: Dashboard, breadcrumbs: [{ label: 'Home' }] }
             case 'projects':
-                return { component: Dashboard, breadcrumbs: [{ label: 'Projects' }] }
+                return { component: Dashboard, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Projects' }] }
             case 'glossary':
-                return { component: Glossary, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Glossary' }] }
+                return { component: Glossary, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Glossary' }] }
             case 'prompt':
-                return { component: PromptLibrary, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Prompt Library' }] }
+                return { component: PromptLibrary, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Prompt Library' }] }
             case 'image-translate':
-                return { component: ImageTranslation, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Image Translation' }] }
+                return { component: ImageTranslation, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Translate' }] }
             case 'approvals':
-                return { component: Approvals, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Manage Approvals' }] }
+                return { component: Approvals, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Approvals' }] }
             case 'settings':
-                return { component: Settings, breadcrumbs: [{ label: 'Projects', href: '#' }, { label: 'Settings' }] }
+                return { component: Settings, breadcrumbs: [{ label: 'Home', href: '#' }, { label: 'Settings' }] }
             default:
                 if (path.startsWith('project/')) {
                     const projectId = path.split('/')[1]
@@ -126,13 +127,14 @@ function AppWithRouting({ authContextValue }) {
                     return {
                         component: ProjectView,
                         breadcrumbs: [
-                            { label: 'Projects', href: '#' },
+                            { label: 'Home', href: '#' },
+                            { label: 'Projects', href: '#projects' },
                             { label: projectName }
                         ],
                         projectId
                     }
                 }
-                return { component: Dashboard, breadcrumbs: [{ label: 'Projects' }] }
+                return { component: Dashboard, breadcrumbs: [{ label: 'Home' }] }
         }
     }
 
@@ -149,7 +151,7 @@ function AppWithRouting({ authContextValue }) {
 
 function App() {
     // Role state for dev testing
-    const [currentRole, setCurrentRole] = useState(ROLES.ADMIN)
+    const [currentRole, setCurrentRole] = useState(ROLES.MANAGER)
 
     // Create context value with canDo helper
     const authContextValue = {
@@ -160,10 +162,8 @@ function App() {
         signIn: () => console.log('Sign in clicked'),
         signOut: () => console.log('Sign out clicked'),
         canDo: (action) => checkPermission(currentRole, action),
-        isAdmin: currentRole === ROLES.ADMIN,
         isManager: currentRole === ROLES.MANAGER,
         isEditor: currentRole === ROLES.EDITOR,
-        isViewer: currentRole === ROLES.VIEWER,
     }
 
     if (DEV_BYPASS_AUTH) {

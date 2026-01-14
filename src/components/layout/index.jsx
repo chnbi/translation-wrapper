@@ -222,7 +222,7 @@ export default function Layout({ children, breadcrumbs = [] }) {
             <AppSidebar />
             <SidebarInset className="bg-app-background">
                 <TopBar breadcrumbs={breadcrumbs} />
-                <div className="flex flex-1 flex-col gap-5 px-12 py-6">
+                <div className="flex flex-1 flex-col gap-5 px-8 py-6">
                     {children}
                 </div>
             </SidebarInset>

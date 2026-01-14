@@ -1,30 +1,28 @@
 /**
  * Role-Based Access Control (RBAC) System
  * 
- * Roles: admin > manager > editor > viewer
+ * Roles: manager > editor
  */
 
 export const ROLES = {
-    ADMIN: 'admin',
     MANAGER: 'manager',
     EDITOR: 'editor',
-    VIEWER: 'viewer',
 }
 
 // Actions that can be performed
 export const ACTIONS = {
-    // User Management (Admin only)
+    // User Management (Manager only)
     MANAGE_USERS: 'manage_users',
 
-    // Configuration (Admin + Manager)
+    // Configuration (Manager only)
     MANAGE_CATEGORIES: 'manage_categories',
     CONFIGURE_SETTINGS: 'configure_settings',
 
-    // Review Actions (Admin + Manager)
+    // Review Actions (Manager only)
     APPROVE_TRANSLATION: 'approve_translation',
     REJECT_TRANSLATION: 'reject_translation',
 
-    // Content (Admin + Manager + Editor)
+    // Content (Manager + Editor)
     CREATE_PROJECT: 'create_project',
     EDIT_PROJECT: 'edit_project',
     DELETE_PROJECT: 'delete_project',
@@ -43,27 +41,7 @@ export const ACTIONS = {
 
 // Permission matrix
 const permissions = {
-    [ROLES.ADMIN]: Object.values(ACTIONS), // Admin can do everything
-
-    [ROLES.MANAGER]: [
-        ACTIONS.MANAGE_USERS, // Added per user request
-        ACTIONS.MANAGE_CATEGORIES,
-        ACTIONS.CONFIGURE_SETTINGS,
-        ACTIONS.APPROVE_TRANSLATION,
-        ACTIONS.REJECT_TRANSLATION,
-        ACTIONS.CREATE_PROJECT,
-        ACTIONS.EDIT_PROJECT,
-        ACTIONS.DELETE_PROJECT,
-        ACTIONS.CREATE_GLOSSARY,
-        ACTIONS.EDIT_GLOSSARY,
-        ACTIONS.DELETE_GLOSSARY,
-        ACTIONS.CREATE_PROMPT,
-        ACTIONS.EDIT_PROMPT,
-        ACTIONS.DELETE_PROMPT,
-        ACTIONS.VIEW_PROJECT,
-        ACTIONS.VIEW_GLOSSARY,
-        ACTIONS.VIEW_PROMPT,
-    ],
+    [ROLES.MANAGER]: Object.values(ACTIONS), // Manager can do everything
 
     [ROLES.EDITOR]: [
         ACTIONS.CREATE_PROJECT,
@@ -75,12 +53,6 @@ const permissions = {
         ACTIONS.CREATE_PROMPT,
         ACTIONS.EDIT_PROMPT,
         ACTIONS.DELETE_PROMPT,
-        ACTIONS.VIEW_PROJECT,
-        ACTIONS.VIEW_GLOSSARY,
-        ACTIONS.VIEW_PROMPT,
-    ],
-
-    [ROLES.VIEWER]: [
         ACTIONS.VIEW_PROJECT,
         ACTIONS.VIEW_GLOSSARY,
         ACTIONS.VIEW_PROMPT,
@@ -98,7 +70,7 @@ export const canDo = (role, action) => {
  * Check if role is at least a certain level
  */
 export const isAtLeast = (role, minimumRole) => {
-    const hierarchy = [ROLES.VIEWER, ROLES.EDITOR, ROLES.MANAGER, ROLES.ADMIN]
+    const hierarchy = [ROLES.EDITOR, ROLES.MANAGER]
     return hierarchy.indexOf(role) >= hierarchy.indexOf(minimumRole)
 }
 
@@ -107,10 +79,8 @@ export const isAtLeast = (role, minimumRole) => {
  */
 export const getRoleLabel = (role) => {
     const labels = {
-        [ROLES.ADMIN]: 'Admin',
         [ROLES.MANAGER]: 'Manager',
         [ROLES.EDITOR]: 'Editor',
-        [ROLES.VIEWER]: 'Viewer',
     }
     return labels[role] || 'Unknown'
 }
@@ -120,10 +90,8 @@ export const getRoleLabel = (role) => {
  */
 export const getRoleColor = (role) => {
     const colors = {
-        [ROLES.ADMIN]: 'bg-red-100 text-red-700',
         [ROLES.MANAGER]: 'bg-purple-100 text-purple-700',
         [ROLES.EDITOR]: 'bg-blue-100 text-blue-700',
-        [ROLES.VIEWER]: 'bg-zinc-100 text-zinc-700',
     }
     return colors[role] || 'bg-zinc-100 text-zinc-700'
 }

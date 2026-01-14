@@ -1,123 +1,206 @@
 // New Project Form - Figma-styled modal for creating new projects
 import { useState } from "react"
-import { X, CirclePlus } from "lucide-react"
+import { X, CirclePlus, Check } from "lucide-react"
 import {
     ModalOverlay,
     ModalContent,
-    ModalHeader,
     FormField,
     TextInput,
     PrimaryButton,
     SecondaryButton,
-    RemovableTag,
-    TagContainer,
     IconButton,
+    COLORS,
 } from "@/components/ui/shared"
 
 const AVAILABLE_LANGUAGES = [
     { id: 'my', label: 'Bahasa Malaysia' },
     { id: 'zh', label: 'Simplified Chinese' },
-    { id: 'zh-TW', label: 'Traditional Chinese' },
-    { id: 'id', label: 'Bahasa Indonesia' },
-    { id: 'th', label: 'Thai' },
-    { id: 'vi', label: 'Vietnamese' },
+]
+
+// Pastel color options for project theme
+const PROJECT_THEMES = [
+    { id: 'pink', color: '#FFE5EC', border: '#FFB6C1', value: 'bg-[#FFE5EC]' },
+    { id: 'orange', color: '#FFF0E5', border: '#FFDAB9', value: 'bg-[#FFF0E5]' },
+    { id: 'yellow', color: '#FFFDE7', border: '#FFF59D', value: 'bg-[#FFFDE7]' },
+    { id: 'mint', color: '#E5F9F6', border: '#A7F3D0', value: 'bg-[#E5F9F6]' },
+    { id: 'cyan', color: '#E5F6FF', border: '#BAE6FD', value: 'bg-[#E5F6FF]' },
+    { id: 'purple', color: '#F3E5FF', border: '#D8B4FE', value: 'bg-[#F3E5FF]' },
 ]
 
 export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
     const [projectName, setProjectName] = useState('')
     const [description, setDescription] = useState('')
-    const [selectedLanguages, setSelectedLanguages] = useState(['my', 'zh'])
+    const [selectedLanguages, setSelectedLanguages] = useState(['my'])
+    const [selectedTheme, setSelectedTheme] = useState(PROJECT_THEMES[0].id)
 
     if (!isOpen) return null
 
     const handleSubmit = (e) => {
         e.preventDefault()
-        if (!projectName.trim()) return
+        if (!projectName.trim() || !description.trim()) return
 
         onSubmit({
             name: projectName.trim(),
             description: description.trim(),
             targetLanguages: selectedLanguages,
+            themeColor: selectedTheme, // Save the selected theme color ID
         })
 
         // Reset form
         setProjectName('')
         setDescription('')
-        setSelectedLanguages(['my', 'zh'])
+        setSelectedLanguages(['my'])
+        setSelectedTheme(PROJECT_THEMES[0].id)
     }
 
-    const removeLanguage = (langId) => {
-        setSelectedLanguages(prev => prev.filter(id => id !== langId))
+    const toggleLanguage = (langId) => {
+        setSelectedLanguages(prev =>
+            prev.includes(langId)
+                ? prev.filter(id => id !== langId)
+                : [...prev, langId]
+        )
     }
-
-    const getLangLabel = (id) => AVAILABLE_LANGUAGES.find(l => l.id === id)?.label || id
 
     return (
         <ModalOverlay onClose={onClose}>
-            <ModalContent>
+            <ModalContent maxWidth="640px">
                 {/* Header with close button */}
                 <div style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    marginBottom: '24px'
+                    marginBottom: '12px'
                 }}>
                     <h2 style={{
                         fontSize: '24px',
                         fontWeight: 700,
                         color: 'black',
-                        padding: '4px 8px'
                     }}>
                         New Project
                     </h2>
-                    <IconButton onClick={onClose}>
-                        <X style={{ width: '18px', height: '18px' }} />
+                    <IconButton onClick={onClose} style={{ color: '#9CA3AF' }}>
+                        <X style={{ width: '20px', height: '20px' }} />
                     </IconButton>
                 </div>
 
+                {/* Divider */}
+                <div style={{
+                    height: '1px',
+                    backgroundColor: 'hsl(220, 13%, 91%)',
+                    margin: '16px 0 24px'
+                }} />
+
                 <form onSubmit={handleSubmit}>
                     {/* Project Name */}
-                    <FormField label="Project name" required>
+                    <FormField label="Project name" required labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
                         <TextInput
                             placeholder="Text"
                             value={projectName}
                             onChange={(e) => setProjectName(e.target.value)}
+                            style={{ height: '44px' }}
                             required
                         />
                     </FormField>
 
                     {/* Project Description */}
-                    <FormField label="Project Description">
+                    <FormField label="Project Description" required labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
                         <TextInput
                             placeholder="Text"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
+                            style={{ height: '44px' }}
+                            required
                         />
                     </FormField>
 
                     {/* Target Languages */}
-                    <FormField label="Target Languages" style={{ marginBottom: '32px' }}>
-                        <TagContainer>
-                            {selectedLanguages.map(langId => (
-                                <RemovableTag
-                                    key={langId}
-                                    label={getLangLabel(langId)}
-                                    onRemove={() => removeLanguage(langId)}
-                                />
-                            ))}
-                        </TagContainer>
+                    <FormField label="Target Languages" labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280', marginBottom: '8px' }}>
+                        <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '8px',
+                        }}>
+                            {AVAILABLE_LANGUAGES.map(lang => {
+                                const isSelected = selectedLanguages.includes(lang.id)
+                                return (
+                                    <button
+                                        key={lang.id}
+                                        type="button"
+                                        onClick={() => toggleLanguage(lang.id)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '6px 16px',
+                                            borderRadius: '9999px',
+                                            fontSize: '14px',
+                                            fontWeight: 400,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.1s ease',
+                                            border: isSelected
+                                                ? `1px solid #EC4899` // Pink-500
+                                                : '1px solid #E5E7EB', // Gray-200
+                                            backgroundColor: 'white',
+                                            color: isSelected
+                                                ? '#EC4899' // Pink-500
+                                                : '#111827', // Gray-900 (or close to black)
+                                        }}
+                                    >
+                                        {lang.label}
+                                        {isSelected && (
+                                            <Check style={{ width: '14px', height: '14px', marginLeft: '2px' }} />
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </FormField>
+
+                    {/* Project Colour */}
+                    <FormField label="Project Colour" labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280', marginBottom: '8px' }}>
+                        <div style={{
+                            display: 'flex',
+                            gap: '12px',
+                        }}>
+                            {PROJECT_THEMES.map(theme => {
+                                const isSelected = selectedTheme === theme.id
+                                return (
+                                    <button
+                                        key={theme.id}
+                                        type="button"
+                                        onClick={() => setSelectedTheme(theme.id)}
+                                        style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '8px',
+                                            backgroundColor: theme.color,
+                                            border: `1px solid ${theme.border}`,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'transform 0.1s',
+                                            transform: isSelected ? 'scale(1.1)' : 'none',
+                                            boxShadow: isSelected ? `0 0 0 2px white, 0 0 0 4px ${theme.border}` : 'none'
+                                        }}
+                                    >
+                                        {/* Optional: Checkmark for better visibility of selection */}
+                                        {/* {isSelected && <Check style={{ width: '18px', height: '18px', color: theme.border }} />} */}
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </FormField>
 
                     {/* Action Buttons */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '32px' }}>
                         <SecondaryButton onClick={onClose}>
                             Cancel
                         </SecondaryButton>
                         <PrimaryButton
                             type="submit"
-                            disabled={!projectName.trim()}
+                            disabled={!projectName.trim() || !description.trim() || selectedLanguages.length === 0}
                         >
-                            <CirclePlus style={{ width: '14px', height: '14px' }} />
                             Create project
                         </PrimaryButton>
                     </div>
@@ -126,3 +209,4 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
         </ModalOverlay>
     )
 }
+

@@ -16,12 +16,14 @@ import { defaultGlossaryTerms } from '@/data/defaults'
 
 export async function getGlossaryTerms() {
     try {
-        const q = query(collection(db, 'glossary'), orderBy('term', 'asc'))
-        const snapshot = await getDocs(q)
-        return snapshot.docs.map(doc => ({
+        // Fetch all glossary terms (no orderBy to avoid index requirement)
+        const snapshot = await getDocs(collection(db, 'glossary'))
+        const terms = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }))
+        // Sort client-side by english term
+        return terms.sort((a, b) => (a.english || '').localeCompare(b.english || ''))
     } catch (error) {
         console.error('Error fetching glossary terms:', error)
         return []
@@ -35,14 +37,15 @@ export async function getGlossaryTerms() {
  */
 export async function getApprovedGlossaryTerms() {
     try {
-        const q = query(collection(db, 'glossary'), orderBy('term', 'asc'))
-        const snapshot = await getDocs(q)
+        const snapshot = await getDocs(collection(db, 'glossary'))
         const allTerms = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }))
-        // Filter for approved terms only
-        const approvedTerms = allTerms.filter(term => term.status === 'approved')
+        // Filter for approved terms and sort by english
+        const approvedTerms = allTerms
+            .filter(term => term.status === 'approved')
+            .sort((a, b) => (a.english || '').localeCompare(b.english || ''))
         console.log(`📚 [Glossary] Fetched ${approvedTerms.length} approved terms (${allTerms.length} total)`)
         return approvedTerms
     } catch (error) {

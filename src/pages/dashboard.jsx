@@ -15,6 +15,8 @@ import { ImportExcelDialog } from "@/components/dialogs"
 import NewProjectForm from "@/components/NewProjectForm"
 import { useProjects } from "@/context/ProjectContext"
 import { useAuth, ACTIONS } from "@/App"
+import { PROJECT_THEMES } from "@/components/ui/shared"
+import { PageHeader, SearchInput } from "@/components/ui/common"
 
 const quickActions = [
     {
@@ -133,8 +135,13 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-8 w-full max-w-7xl mx-auto pb-10">
-            {/* Header */}
+        <div className="space-y-8 w-full pb-10">
+            {/* Page Title */}
+            <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '4px', color: 'hsl(222, 47%, 11%)' }}>
+                Home
+            </h1>
+
+            {/* Header - Search */}
             <div className="flex items-center justify-between">
                 <div className="relative w-80">
                     <Input
@@ -173,12 +180,12 @@ export default function Dashboard() {
                 {canDo('approve_translation') && (
                     <button
                         onClick={() => window.location.hash = "#approvals"}
-                        className="p-5 rounded-2xl text-left transition-all hover:shadow-card-hover hover:scale-[1.02] bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800"
+                        className="p-5 rounded-2xl text-left transition-all hover:shadow-card-hover hover:scale-[1.02] bg-white border border-border/50 group" // Clean white card by default
                     >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 bg-white dark:bg-zinc-900">
-                            <CheckSquare className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 bg-secondary-pink text-white"> // Pink icon background
+                            <CheckSquare className="w-5 h-5" />
                         </div>
-                        <p className="font-semibold text-foreground">
+                        <p className="font-semibold text-foreground group-hover:text-secondary-pink transition-colors"> // Hover effect
                             Manage Approvals
                         </p>
                         <p className="text-sm mt-0.5 text-muted-foreground">
@@ -230,9 +237,23 @@ export default function Dashboard() {
                         >
                             {/* Project Name */}
                             <div className="col-span-5 flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-lg ${project.color || 'bg-primary/10'} flex items-center justify-center`}>
-                                    <FileSpreadsheet className="w-4 h-4 text-white" />
-                                </div>
+                                {(() => {
+                                    // Determine theme: use project.themeColor, or default to pink
+                                    // Handle legacy imported projects which might not have themeColor
+                                    const theme = PROJECT_THEMES.find(t => t.id === project.themeColor) || PROJECT_THEMES[0]
+
+                                    return (
+                                        <div
+                                            className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                            style={{ backgroundColor: theme.color }}
+                                        >
+                                            <FileSpreadsheet
+                                                className="w-4 h-4"
+                                                style={{ color: theme.iconColor }}
+                                            />
+                                        </div>
+                                    )
+                                })()}
                                 <div>
                                     <p className="font-medium text-foreground">{project.name}</p>
                                     <p className="text-xs text-muted-foreground">

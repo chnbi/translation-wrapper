@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -17,9 +17,13 @@
         --popover: 0 0% 100%;
         --popover-foreground: 222 47% 11%;
 
-        /* Primary: Pink #EC407A (matching Figma) */
-        --primary: 340 82% 59%;
+        /* Primary: Pink #FF0084 (User Specified) */
+        --primary: 329 100% 50%;
         --primary-foreground: 0 0% 100%;
+
+        /* Secondary Pink: #FF4AA7 (Buttons) */
+        --secondary-pink: 329 100% 65%;
+        --secondary-pink-foreground: 0 0% 100%;
 
         --secondary: 220 14% 96%;
         --secondary-foreground: 222 47% 11%;
@@ -43,12 +47,12 @@
         /* Sidebar: Light gradient feel - Figma style */
         --sidebar-background: 240 20% 98%;
         --sidebar-foreground: 222 47% 20%;
-        --sidebar-primary: 340 82% 59%;
-        --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 340 82% 97%;
-        --sidebar-accent-foreground: 340 82% 45%;
+        --sidebar-primary: 329 100% 86%; /* #FFB9DD */
+        --sidebar-primary-foreground: 329 100% 50%; /* #FF0084 */
+        --sidebar-accent: 329 100% 98%;
+        --sidebar-accent-foreground: 329 100% 50%;
         --sidebar-border: 220 13% 91%;
-        --sidebar-ring: 340 82% 59%;
+        --sidebar-ring: 329 100% 50%;
     }
 
     .dark {
@@ -64,8 +68,13 @@
         --popover-foreground: 210 20% 98%;
 
         /* Primary: Pink */
-        --primary: 340 82% 59%;
+        /* Primary: Pink */
+        --primary: 329 100% 50%;
         --primary-foreground: 0 0% 100%;
+
+        /* Secondary Pink: #FF4AA7 (Buttons) */
+        --secondary-pink: 329 100% 65%;
+        --secondary-pink-foreground: 0 0% 100%;
 
         --secondary: 215 28% 17%;
         --secondary-foreground: 210 20% 98%;

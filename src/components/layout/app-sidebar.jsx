@@ -5,19 +5,17 @@ import {
   BookOpen,
   Library,
   Folder,
-  Search,
   FileText,
   CheckSquare,
-  LayoutDashboard,
   Key,
   Users,
   Bell,
   ChevronDown,
   ChevronRight,
+  Edit3,
 } from "lucide-react"
 
 import { NavMain } from "./nav-main"
-import { NavUser } from "./nav-user"
 import {
   Sidebar,
   SidebarContent,
@@ -31,22 +29,84 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  useSidebar,
 } from "@/components/ui/sidebar"
-import { useAuth } from "@/App"
 import { useProjects } from "@/context/ProjectContext"
+import { useGlossary } from "@/context/GlossaryContext"
+import { usePrompts } from "@/context/PromptContext"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 
-// Navigation Groups - matching Figma design
+// WordFlow Logo Component - matching Figma design
+function WordFlowLogo() {
+  const { state } = useSidebar()
+  const isCollapsed = state === "collapsed"
+
+  return (
+    <a href="#" className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer">
+      {/* Logo Icon - Pink gradient flower/sparkle */}
+      <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 32 32"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Main flower petals */}
+          <path
+            d="M16 4C16 4 20 8 20 12C20 16 16 20 16 20C16 20 12 16 12 12C12 8 16 4 16 4Z"
+            fill="url(#petal1)"
+          />
+          <path
+            d="M28 16C28 16 24 20 20 20C16 20 12 16 12 16C12 16 16 12 20 12C24 12 28 16 28 16Z"
+            fill="url(#petal2)"
+          />
+          <path
+            d="M16 28C16 28 12 24 12 20C12 16 16 12 16 12C16 12 20 16 20 20C20 24 16 28 16 28Z"
+            fill="url(#petal3)"
+          />
+          <path
+            d="M4 16C4 16 8 12 12 12C16 12 20 16 20 16C20 16 16 20 12 20C8 20 4 16 4 16Z"
+            fill="url(#petal4)"
+          />
+          {/* Center circle */}
+          <circle cx="16" cy="16" r="3" fill="#FF6B9D" />
+          <defs>
+            <linearGradient id="petal1" x1="16" y1="4" x2="16" y2="20" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF8FB1" />
+              <stop offset="1" stopColor="#FF6B9D" />
+            </linearGradient>
+            <linearGradient id="petal2" x1="28" y1="16" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF8FB1" />
+              <stop offset="1" stopColor="#FF6B9D" />
+            </linearGradient>
+            <linearGradient id="petal3" x1="16" y1="28" x2="16" y2="12" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF8FB1" />
+              <stop offset="1" stopColor="#FF6B9D" />
+            </linearGradient>
+            <linearGradient id="petal4" x1="4" y1="16" x2="20" y2="16" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF8FB1" />
+              <stop offset="1" stopColor="#FF6B9D" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      {/* Brand Name - hidden when collapsed */}
+      {!isCollapsed && (
+        <span className="text-lg font-semibold text-sidebar-foreground tracking-tight">
+          WordFlow
+        </span>
+      )}
+    </a>
+  )
+}
+
+// Navigation Groups - matching Figma design (reordered to match)
 const navEssentials = [
-  {
-    title: "Overview",
-    url: "#",
-    icon: LayoutDashboard,
-  },
   {
     title: "Projects",
     url: "#projects",
@@ -58,19 +118,19 @@ const navEssentials = [
     icon: BookOpen,
   },
   {
-    title: "Prompt Library",
-    url: "#prompt",
-    icon: Library,
-  },
-  {
     title: "Approvals",
     url: "#approvals",
-    icon: CheckSquare,
+    icon: Edit3,
   },
   {
     title: "Translate",
     url: "#image-translate",
     icon: Languages,
+  },
+  {
+    title: "Prompt Library",
+    url: "#prompt",
+    icon: Library,
   },
 ]
 
@@ -99,7 +159,6 @@ function ProjectWithPages({ project, pages, isActive, currentHash }) {
           <SidebarMenuButton
             tooltip={project.name}
             isActive={isActive}
-            className={isActive ? 'bg-pink-50 text-pink-600 font-medium rounded-lg' : 'hover:bg-gray-50'}
           >
             <Folder className="h-4 w-4" />
             <span>{project.name}</span>
@@ -107,20 +166,15 @@ function ProjectWithPages({ project, pages, isActive, currentHash }) {
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <SidebarMenuSub style={{ paddingLeft: '24px', marginTop: '4px' }}>
+          <SidebarMenuSub>
             {pages.map((page) => {
               const isActivePage = currentHash.includes(`page=${page.id}`) ||
                 (isActive && currentHash === `#project/${project.id}` && pages[0]?.id === page.id)
               return (
-                <SidebarMenuSubItem key={page.id} style={{ marginBottom: '2px' }}>
+                <SidebarMenuSubItem key={page.id}>
                   <SidebarMenuSubButton
                     asChild
                     isActive={isActivePage}
-                    className={isActivePage ? 'bg-pink-50 text-pink-600 font-medium' : 'hover:bg-gray-50'}
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: '14px'
-                    }}
                   >
                     <a href={`#project/${project.id}?page=${page.id}`}>
                       <span>{page.name}</span>
@@ -137,8 +191,9 @@ function ProjectWithPages({ project, pages, isActive, currentHash }) {
 }
 
 export function AppSidebar({ ...props }) {
-  const { user } = useAuth()
-  const { projects, getProjectPages } = useProjects()
+  const { projects, getProjectPages, getPageRows, getProjectRows } = useProjects()
+  const { terms: glossaryTerms } = useGlossary()
+  const { prompts } = usePrompts()
   const [settingsOpen, setSettingsOpen] = React.useState(true)
   const [currentHash, setCurrentHash] = React.useState(window.location.hash)
 
@@ -149,6 +204,39 @@ export function AppSidebar({ ...props }) {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
+  // Compute badge counts
+  const pendingApprovals = React.useMemo(() => {
+    let count = 0
+    // Count project rows pending review
+    for (const project of projects) {
+      const pages = getProjectPages(project.id) || []
+      if (pages.length > 0) {
+        for (const page of pages) {
+          const rows = getPageRows(project.id, page.id) || []
+          count += rows.filter(r => r.status === 'review').length
+        }
+      } else {
+        const rows = getProjectRows(project.id) || []
+        count += rows.filter(r => r.status === 'review').length
+      }
+    }
+    // Count glossary terms pending review
+    count += glossaryTerms.filter(t => t.status === 'review').length
+    return count
+  }, [projects, getProjectPages, getPageRows, getProjectRows, glossaryTerms])
+
+  const glossaryPendingCount = glossaryTerms.filter(t => t.status === 'review').length
+  const projectsInProgress = projects.filter(p => p.status === 'in-progress').length
+
+  // Dynamic nav items with badges
+  const navEssentialsWithBadges = [
+    { title: "Projects", url: "#projects", icon: Folder, badge: projectsInProgress },
+    { title: "Glossary", url: "#glossary", icon: BookOpen, badge: glossaryPendingCount },
+    { title: "Approvals", url: "#approvals", icon: Edit3, badge: pendingApprovals },
+    { title: "Translate", url: "#image-translate", icon: Languages },
+    { title: "Prompt Library", url: "#prompt", icon: Library },
+  ]
+
   // Dynamic projects list (show up to 5 recent, sorted by lastUpdated)
   const navProjects = [...projects]
     .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0))
@@ -157,28 +245,14 @@ export function AppSidebar({ ...props }) {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar" {...props}>
-      <SidebarHeader className="bg-sidebar text-sidebar-foreground pt-6 pb-2 px-4 transition-all">
-        {/* User Profile at Top */}
-        <NavUser user={{
-          name: user?.displayName || 'Dev User',
-          email: user?.email || 'dev@example.com',
-          avatar: user?.photoURL || '',
-        }} />
-
-        {/* Search Bar */}
-        <div className="mt-4 relative group-data-[collapsible=icon]:hidden">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-sidebar-foreground/50" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-full bg-white/70 hover:bg-white focus:bg-white text-sidebar-foreground placeholder:text-sidebar-foreground/50 rounded-lg py-2 pl-9 pr-4 text-sm outline-none transition-colors border border-sidebar-border focus:border-sidebar-primary/30 shadow-sm"
-          />
-        </div>
+      <SidebarHeader className="bg-sidebar text-sidebar-foreground pt-5 pb-4 px-4 transition-all">
+        {/* WordFlow Logo */}
+        <WordFlowLogo />
       </SidebarHeader>
 
       <SidebarContent className="bg-sidebar text-sidebar-foreground/80 px-2 pt-2 gap-4">
         {/* Essentials */}
-        <NavMain label="Essentials" items={navEssentials} />
+        <NavMain items={navEssentialsWithBadges} />
 
         {/* Recent Projects - Hidden when sidebar minimized */}
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -186,7 +260,7 @@ export function AppSidebar({ ...props }) {
           <SidebarMenu>
             {navProjects.map((project) => {
               const pages = getProjectPages(project.id)
-              const hasPages = pages && pages.length > 1
+              const hasPages = pages && pages.length >= 1
               const isActiveProject = currentHash.includes(`project/${project.id}`)
 
               // If project has multiple pages, show as collapsible
@@ -209,7 +283,6 @@ export function AppSidebar({ ...props }) {
                     asChild
                     tooltip={project.name}
                     isActive={isActiveProject}
-                    className={isActiveProject ? 'bg-pink-50 text-pink-600 font-medium rounded-lg' : 'hover:bg-gray-50'}
                   >
                     <a href={`#project/${project.id}`}>
                       <Folder className="h-4 w-4" />

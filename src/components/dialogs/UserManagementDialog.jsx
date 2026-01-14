@@ -17,15 +17,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { useAuth } from "@/App"
-import { ROLES, getRoleLabel, getRoleColor, isAtLeast } from "@/lib/permissions"
+import { ROLES, getRoleLabel, getRoleColor } from "@/lib/permissions"
 
-// Mock users for now (since we don't have an admin SDK integrated yet)
+// Mock users for now (since we don't have Firebase Admin SDK integrated yet)
 const MOCK_USERS = [
-    { id: '1', email: 'admin@example.com', role: 'admin', joined: '2023-01-15' },
-    { id: '2', email: 'manager@example.com', role: 'manager', joined: '2023-02-20' },
-    { id: '3', email: 'editor@example.com', role: 'editor', joined: '2023-03-10' },
-    { id: '4', email: 'viewer@example.com', role: 'viewer', joined: '2023-04-05' },
-    { id: '5', email: 'newbie@example.com', role: 'viewer', joined: '2023-05-12' },
+    { id: '1', email: 'manager@example.com', role: 'manager', joined: '2023-01-15' },
+    { id: '2', email: 'editor1@example.com', role: 'editor', joined: '2023-02-20' },
+    { id: '3', email: 'editor2@example.com', role: 'editor', joined: '2023-03-10' },
 ]
 
 export default function UserManagementDialog({ open, onOpenChange }) {
@@ -54,10 +52,9 @@ export default function UserManagementDialog({ open, onOpenChange }) {
         // Can't edit self
         if (targetUser.email === currentUser?.email) return false
 
-        // Manager cannot edit Admin
-        if (currentRole === ROLES.MANAGER && targetUser.role === ROLES.ADMIN) return false
+        // Only managers can edit roles
+        if (currentRole !== ROLES.MANAGER) return false
 
-        // Admin can edit everyone else
         return true
     }
 
@@ -125,25 +122,12 @@ export default function UserManagementDialog({ open, onOpenChange }) {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                {/* Only show roles allowed to be assigned */}
-                                                <DropdownMenuItem onClick={() => handleRoleChange(u.id, ROLES.VIEWER)}>
-                                                    Viewer
-                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => handleRoleChange(u.id, ROLES.EDITOR)}>
                                                     Editor
                                                 </DropdownMenuItem>
-                                                {/* Only Admins can make Managers? Or Managers can too? 
-                                                    Let's say Managers can make Managers, but not Admins. 
-                                                */}
                                                 <DropdownMenuItem onClick={() => handleRoleChange(u.id, ROLES.MANAGER)}>
                                                     Manager
                                                 </DropdownMenuItem>
-
-                                                {currentRole === ROLES.ADMIN && (
-                                                    <DropdownMenuItem onClick={() => handleRoleChange(u.id, ROLES.ADMIN)} className="text-red-600">
-                                                        Admin
-                                                    </DropdownMenuItem>
-                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>

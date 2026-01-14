@@ -29,14 +29,7 @@ export function PromptProvider({ children }) {
         async function loadData() {
             try {
                 console.log('🔄 [Firestore] Loading templates...')
-                let firestoreTemplates = await firestoreService.getTemplates()
-
-                if (firestoreTemplates.length === 0) {
-                    // Seed default templates
-                    console.log('📦 [Firestore] Empty templates, seeding defaults...')
-                    await firestoreService.seedDefaultTemplates()
-                    firestoreTemplates = await firestoreService.getTemplates()
-                }
+                const firestoreTemplates = await firestoreService.getTemplates()
 
                 // Enhance with icon components
                 const enhanced = firestoreTemplates.map(t => ({

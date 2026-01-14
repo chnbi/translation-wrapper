@@ -42,6 +42,21 @@ export const defaultGlossaryTerms = [
 // ===========================================
 export const defaultPromptTemplates = [
     {
+        name: "Default Template",
+        description: "General-purpose translation template for accurate and natural translations.",
+        prompt: "Role: Creative Copywriter.\n\nGoal: Transcreate this slogan for a local audience. Focus on impact, rhythm, and memorability over literal accuracy.\n\nConstraints: Keep the length similar to the source. Use cultural idioms if they fit the brand voice.\n\nTone: Bold, Energetic, Punchy.",
+        category: "default",
+        tags: ["Default"],
+        variables: ["target_language"],
+        author: "System",
+        iconName: "FileText",
+        iconColor: "text-slate-600 dark:text-slate-400",
+        iconBg: "bg-slate-100 dark:bg-slate-900/50",
+        color: "bg-slate-50 dark:bg-slate-950/30",
+        isDefault: true,  // Pinned as default, cannot be deleted
+        status: "published"
+    },
+    {
         name: "Formal Business",
         description: "Professional tone for corporate communications, reports, and official documents.",
         prompt: "Translate the following text into {target_language}. Maintain a formal, professional tone suitable for corporate communications.",

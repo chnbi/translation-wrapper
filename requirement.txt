@@ -53,6 +53,8 @@ Permissions:
 - View assigned projects/pages
 - Edit content in target language columns (Bahasa/Chinese)
 - Use AI generation tools ("Magic Fill" / Translate)
+- Select Prompt Category (Dropdown) in translation table
+- View Prompt Guidelines (Tooltip only)
 - Action: "Submit for Review" (cannot "Approve" or "Export")
 
 Constraints:
@@ -64,7 +66,9 @@ Goal: Ensure quality, consistency, and deployment readiness.
 
 Permissions:
 - Create/Delete Projects and Pages
+- Create/Delete Projects and Pages
 - Manage Glossary and Team Settings
+- Full Access to Prompt Library (Create/Edit Categories & Global Default)
 - Action: "Approve" or "Request Changes" on submitted rows
 - Action: "Export" or "Publish" final content
 
@@ -255,18 +259,40 @@ Logic:
 # SECTION 8: PROMPT ENGINEERING
 # =============================================================================
 
-## 8.1 PROMPT LIBRARY [DONE]
+## 8.1 INHERITANCE LOGIC ("The Layer Cake") [PLANNED]
 --------------------------------------------------------------------------------
-- CRUD operations for templates
-- Status workflow: Draft → Review → Published
-- Category filtering
-- Variable substitution: {{target_language}}
+Conceptual Model:
+1. Layer 1: Global Default (The Base)
+   - Applies to ALL translations.
+   - Example: "Professional tone, formal rules, glossary usage."
+   - Editable ONLY by Manager.
 
-## 8.2 PER-ROW ASSIGNMENT [PARTIAL]
+2. Layer 2: Category (The Flavor)
+   - Appended to Global Default.
+   - Example: "Banner Mode: Short, punchy."
+   - Selectable by Editor.
+
+Final Prompt sent to AI = [Global Default] + [Category Specific Instructions]
+
+## 8.2 ROLE-BASED ACCESS [PLANNED]
 --------------------------------------------------------------------------------
-- Each row has promptId field (default: 'default')
-- Prompt column in editor shows assigned prompt
-- Batch assignment via bulk actions [PLANNED]
+| Feature | Editor (User) | Manager (Admin) |
+| --- | --- | --- |
+| Select Category | ✅ Yes (Dropdown) | ✅ Yes |
+| View Prompt Text | 👁️ Read-only (Tooltip) | ✏️ View & Edit |
+| Edit "Default" | ❌ No | ✅ Yes (Critical) |
+| Create Category | ❌ No | ✅ Yes |
+
+## 8.3 UI IMPLEMENTATION [PLANNED]
+--------------------------------------------------------------------------------
+Manager View (Prompt Library):
+- Left Sidebar: List of prompts including fixed "Global System Prompt"
+- Main Area: Edit interface for selected prompt
+
+Editor View (Translation Table):
+- Prompt Column: Dropdown implementation
+- Interaction: Hover over pill → Tooltip shows "Guideline" text (not raw prompt)
+- Restriction: No edit access to text.
 
 
 # =============================================================================

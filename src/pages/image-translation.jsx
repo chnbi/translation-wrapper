@@ -151,10 +151,10 @@ export default function ImageTranslation() {
     }
 
     return (
-        <div className="space-y-8 w-full max-w-5xl mx-auto pb-10">
+        <div className="w-full pb-10 space-y-8">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Image Translation</h1>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(222, 47%, 11%)' }}>Image Translation</h1>
                 <p className="text-muted-foreground mt-1">
                     Upload images, extract text with AI OCR, and translate.
                 </p>

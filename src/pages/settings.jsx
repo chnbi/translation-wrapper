@@ -65,7 +65,7 @@ const adminSections = [
 ]
 
 export default function Settings() {
-    const { isAdmin, canDo, user } = useAuth()
+    const { isManager, canDo, user } = useAuth()
     const [isCategoryOpen, setIsCategoryOpen] = useState(false)
     const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false)
 
@@ -74,7 +74,7 @@ export default function Settings() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                    <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(222, 47%, 11%)' }}>Settings</h1>
                     <p className="text-muted-foreground mt-1">Manage your account and preferences</p>
                 </div>
             </div>

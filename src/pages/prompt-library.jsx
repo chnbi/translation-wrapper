@@ -1,110 +1,73 @@
-// Prompt Library - Redesigned with status workflow and use-case categories
+// Prompt Library - Card grid layout matching Figma design
 import { useState, useRef, useEffect } from "react"
-import { Search, Plus, Filter, Copy, MoreHorizontal, Clock, CheckCircle2, Eye, Pencil, Trash2, X } from "lucide-react"
+import { Search, Plus, Filter, ArrowUpDown, MoreHorizontal, Copy, Pencil, Trash2, X, CirclePlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { PromptDetailDialog } from "@/components/dialogs"
 import { usePrompts } from "@/context/PromptContext"
 import { useAuth, ACTIONS } from "@/App"
+import { COLORS, PrimaryButton, SecondaryButton, PillButton, IconButton } from "@/components/ui/shared"
+import { PageHeader, CategoryFilterTabs, SearchInput } from "@/components/ui/common"
+import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
+import { getStatusConfig } from "@/lib/constants"
 
-// Use-case based categories for translation prompts
-const CATEGORIES = {
-    'banner': { label: 'Banner Slogan', color: 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400' },
-    'button': { label: 'Button Text', color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' },
-    'features': { label: 'Features', color: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400' },
-    'narratives': { label: 'Narratives', color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' },
-    'news': { label: 'News', color: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' },
-    'legal': { label: 'Legal', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
-    'social': { label: 'Social Media', color: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400' },
-    'technical': { label: 'Technical', color: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' },
-}
-
-// Status workflow configuration
-const STATUS_CONFIG = {
-    draft: { label: 'Draft', icon: Clock, color: 'text-slate-500', bg: 'bg-slate-100 dark:bg-slate-800' },
-    review: { label: 'In Review', icon: Eye, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/30' },
-    published: { label: 'Published', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/30' },
-}
-
-// Sort options
-const SORT_OPTIONS = [
-    { value: 'name-asc', label: 'Name (A-Z)' },
-    { value: 'name-desc', label: 'Name (Z-A)' },
-    { value: 'date-desc', label: 'Newest First' },
-    { value: 'date-asc', label: 'Oldest First' },
-    { value: 'status', label: 'By Status' },
-]
+// Using centralized STATUS_CONFIG from @/lib/constants
 
 export default function PromptLibrary() {
     const { templates, addTemplate, updateTemplate, deleteTemplate, duplicateTemplate } = usePrompts()
     const { canDo } = useAuth()
     const [searchQuery, setSearchQuery] = useState("")
-    const [activeStatus, setActiveStatus] = useState("all")
-    const [activeCategory, setActiveCategory] = useState("all")
-    const [sortBy, setSortBy] = useState("date-desc")
-    const [showFilterMenu, setShowFilterMenu] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingTemplate, setEditingTemplate] = useState(null)
-    const [toastMessage, setToastMessage] = useState(null)
-    const [deleteConfirm, setDeleteConfirm] = useState(null)
+    const [viewingTemplate, setViewingTemplate] = useState(null)  // View modal state
     const [openMenu, setOpenMenu] = useState(null)
-    const [expandedId, setExpandedId] = useState(null)
-    const filterRef = useRef(null)
+    const [deleteConfirm, setDeleteConfirm] = useState(null)
+    const [activeCategory, setActiveCategory] = useState('All')
+    const [statusFilter, setStatusFilter] = useState([]) // Multi-selectable status filter
 
-    // Close filter menu on outside click
+    // Prompt-specific status options - using centralized config
+    const PROMPT_STATUS_OPTIONS = [
+        { id: 'draft', label: 'Draft', color: '#94a3b8' },
+        { id: 'review', label: 'In Review', color: '#3b82f6' },
+        { id: 'published', label: 'Published', color: '#10b981' },
+    ]
+
+    // Get unique categories from templates (using tags)
+    const allCategories = ['All', ...new Set(
+        templates.flatMap(t => t.tags || ['Default']).filter(tag => tag !== 'Default')
+    ), 'Default']
+
+    // Close menu on outside click
     useEffect(() => {
         function handleClickOutside(e) {
-            if (filterRef.current && !filterRef.current.contains(e.target)) {
-                setShowFilterMenu(false)
+            if (openMenu && !e.target.closest('[data-menu]')) {
+                setOpenMenu(null)
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+    }, [openMenu])
 
-    // Ensure all templates have status
-    const templatesWithDefaults = templates.map(t => ({
-        ...t,
-        status: t.status || 'draft',
-        category: t.category || 'narratives'
-    }))
+    // Filter by search, category, and status
+    const filteredTemplates = templates.filter(template => {
+        const matchesSearch = template.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            template.prompt?.toLowerCase().includes(searchQuery.toLowerCase())
 
-    // Calculate counts per status
-    const statusCounts = {
-        all: templatesWithDefaults.length,
-        draft: templatesWithDefaults.filter(t => t.status === 'draft').length,
-        review: templatesWithDefaults.filter(t => t.status === 'review').length,
-        published: templatesWithDefaults.filter(t => t.status === 'published').length,
-    }
+        // Category filter (using tags)
+        const templateTags = template.tags || ['Default']
+        const matchesCategory = activeCategory === 'All' || templateTags.includes(activeCategory)
 
-    // Filter Logic
-    const filteredTemplates = templatesWithDefaults
-        .filter(template => {
-            const matchesSearch = template.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                template.prompt?.toLowerCase().includes(searchQuery.toLowerCase())
+        // Status filter - if no selection, show all
+        const matchesStatus = statusFilter.length === 0 || statusFilter.includes(template.status || 'draft')
 
-            const matchesStatus = activeStatus === "all" || template.status === activeStatus
-            const matchesCategory = activeCategory === "all" || template.category === activeCategory
+        return matchesSearch && matchesCategory && matchesStatus
+    })
 
-            return matchesSearch && matchesStatus && matchesCategory
-        })
-        .sort((a, b) => {
-            switch (sortBy) {
-                case 'name-asc':
-                    return (a.name || '').localeCompare(b.name || '')
-                case 'name-desc':
-                    return (b.name || '').localeCompare(a.name || '')
-                case 'date-asc':
-                    return (a.id || 0) - (b.id || 0)
-                case 'date-desc':
-                    return (b.id || 0) - (a.id || 0)
-                case 'status':
-                    const order = { published: 0, review: 1, draft: 2 }
-                    return (order[a.status] || 2) - (order[b.status] || 2)
-                default:
-                    return 0
-            }
-        })
+    // Sort: Default first, then others
+    const sortedTemplates = [...filteredTemplates].sort((a, b) => {
+        if (a.isDefault && !b.isDefault) return -1
+        if (!a.isDefault && b.isDefault) return 1
+        return 0
+    })
 
     const handleCreate = () => {
         setEditingTemplate(null)
@@ -125,249 +88,260 @@ export default function PromptLibrary() {
         }
     }
 
-    const handleDelete = (id) => {
-        deleteTemplate(id)
+    const handleDelete = async (id) => {
+        // Note: When a prompt is deleted, rows using it will fall back to 'Default'
+        // because getPromptName returns null for missing prompts, and the UI shows 'Default'
+        // The translations remain unchanged - only the promptId reference becomes orphaned
+        await deleteTemplate(id)
         setDeleteConfirm(null)
         setOpenMenu(null)
+        toast.success('Prompt deleted. Rows using this prompt will show Default.')
     }
 
     const handleCopy = (template) => {
         navigator.clipboard.writeText(template.prompt)
-        setToastMessage(`Prompt copied to clipboard!`)
-        setTimeout(() => setToastMessage(null), 3000)
         setOpenMenu(null)
     }
 
-    const handleDuplicate = (template) => {
-        duplicateTemplate(template.id)
-        setToastMessage(`Duplicated "${template.name}"`)
-        setTimeout(() => setToastMessage(null), 3000)
-        setOpenMenu(null)
-    }
+    // Parse prompt content for display (Role, Goal, Constraints)
+    const parsePromptContent = (prompt) => {
+        const lines = prompt?.split('\n') || []
+        let role = '', goal = '', constraints = ''
 
-    const clearFilters = () => {
-        setSearchQuery("")
-        setActiveStatus("all")
-        setActiveCategory("all")
-        setSortBy("date-desc")
-    }
+        lines.forEach(line => {
+            if (line.toLowerCase().startsWith('role:')) {
+                role = line.substring(5).trim()
+            } else if (line.toLowerCase().startsWith('goal:')) {
+                goal = line.substring(5).trim()
+            } else if (line.toLowerCase().startsWith('constraints:')) {
+                constraints = line.substring(12).trim()
+            }
+        })
 
-    const hasActiveFilters = searchQuery || activeStatus !== "all" || activeCategory !== "all" || sortBy !== "date-desc"
+        // Fallback: use first 100 chars as goal if no structured content
+        if (!role && !goal && !constraints && prompt) {
+            goal = prompt.substring(0, 100) + (prompt.length > 100 ? '...' : '')
+        }
+
+        return { role, goal, constraints }
+    }
 
     return (
-        <div className="space-y-6 w-full max-w-7xl mx-auto pb-10">
+        <div className="w-full pb-10">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Prompt Library</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage translation prompts for different use cases.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {canDo(ACTIONS.CREATE_PROMPT) && (
-                        <Button onClick={handleCreate} className="rounded-xl shadow-sm">
-                            <Plus className="w-4 h-4 mr-2" /> Add New
-                        </Button>
-                    )}
-                </div>
+            <div style={{ marginBottom: '16px' }}>
+                <h1 style={{
+                    fontSize: '24px',
+                    fontWeight: 700,
+                    letterSpacing: '-0.02em',
+                    color: 'hsl(222, 47%, 11%)',
+                    marginBottom: '4px'
+                }}>
+                    Prompt Library
+                </h1>
             </div>
 
-            {/* Status Tabs */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl w-fit">
-                    {['all', 'draft', 'review', 'published'].map(status => (
-                        <button
-                            key={status}
-                            onClick={() => setActiveStatus(status)}
-                            className={`px - 4 py - 2 text - sm font - medium rounded - lg transition - all flex items - center gap - 2 ${activeStatus === status
-                                ? "bg-card text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                } `}
-                        >
-                            {status === 'all' ? 'All' : STATUS_CONFIG[status].label}
-                            <span className={`text - xs px - 1.5 py - 0.5 rounded - full ${activeStatus === status ? 'bg-primary/10 text-primary' : 'bg-muted'
-                                } `}>
-                                {statusCounts[status]}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Search + Filter + Sort */}
-                <div className="flex items-center gap-2">
-                    <div className="relative w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search prompts..."
-                            className="pl-9 rounded-xl"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery("")}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Filter & Sort Dropdown */}
-                    <div className="relative" ref={filterRef}>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className={`rounded - xl gap - 2 ${hasActiveFilters ? 'border-primary text-primary' : ''} `}
-                            onClick={() => setShowFilterMenu(!showFilterMenu)}
-                        >
-                            <Filter className="w-4 h-4" /> Filter & Sort
-                        </Button>
-
-                        {showFilterMenu && (
-                            <div className="absolute right-0 top-full mt-2 bg-card border rounded-xl shadow-lg p-4 w-72 z-20">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="font-semibold text-sm">Filter & Sort</span>
-                                    {hasActiveFilters && (
-                                        <button
-                                            onClick={clearFilters}
-                                            className="text-xs text-primary hover:underline"
-                                        >
-                                            Clear All
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Sort By */}
-                                <div className="mb-4">
-                                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Sort By</label>
-                                    <select
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value)}
-                                        className="w-full h-9 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    >
-                                        {SORT_OPTIONS.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Category Filter */}
-                                <div className="mb-4">
-                                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Category</label>
-                                    <select
-                                        value={activeCategory}
-                                        onChange={(e) => setActiveCategory(e.target.value)}
-                                        className="w-full h-9 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    >
-                                        <option value="all">All Categories</option>
-                                        {Object.entries(CATEGORIES).map(([key, { label }]) => (
-                                            <option key={key} value={key}>{label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Status Filter */}
-                                <div>
-                                    <label className="text-xs font-medium text-muted-foreground mb-2 block">Status</label>
-                                    <select
-                                        value={activeStatus}
-                                        onChange={(e) => setActiveStatus(e.target.value)}
-                                        className="w-full h-9 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    >
-                                        <option value="all">All Statuses</option>
-                                        {Object.entries(STATUS_CONFIG).map(([key, { label }]) => (
-                                            <option key={key} value={key}>{label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Category Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                <button
-                    onClick={() => setActiveCategory("all")}
-                    className={`px - 3 py - 1.5 text - sm font - medium rounded - full whitespace - nowrap transition - all ${activeCategory === "all"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                        } `}
-                >
-                    All Categories
-                </button>
-                {Object.entries(CATEGORIES).map(([key, { label, color }]) => (
+            {/* Category Filter Tabs */}
+            <div style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '16px',
+                overflowX: 'auto',
+                paddingBottom: '4px'
+            }}>
+                {allCategories.map(category => (
                     <button
-                        key={key}
-                        onClick={() => setActiveCategory(key)}
-                        className={`px - 3 py - 1.5 text - sm font - medium rounded - full whitespace - nowrap transition - all ${activeCategory === key
-                            ? color
-                            : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                            } `}
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        style={{
+                            padding: '8px 16px',
+                            borderRadius: '9999px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            border: 'none',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            backgroundColor: activeCategory === category ? '#FF0084' : 'hsl(220, 14%, 96%)',
+                            color: activeCategory === category ? 'white' : 'hsl(220, 9%, 46%)',
+                            transition: 'all 0.15s'
+                        }}
                     >
-                        {label}
+                        {category}
                     </button>
                 ))}
             </div>
 
-            {/* Grid of Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-                {filteredTemplates.map(template => {
-                    const StatusIcon = STATUS_CONFIG[template.status]?.icon || Clock
-                    const categoryInfo = CATEGORIES[template.category] || { label: 'No Category', color: 'bg-muted text-muted-foreground' }
+            {/* Action Bar - prompt count on left, buttons on right */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                marginBottom: '24px'
+            }}>
+                {/* Left side - Prompt count */}
+                <span style={{
+                    fontSize: '14px',
+                    color: 'hsl(220, 9%, 46%)'
+                }}>
+                    {templates.length} prompt(s)
+                </span>
 
-                    const isExpanded = expandedId === template.id
+                {/* Right side - Search and buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', width: '200px' }}>
+                        <Search style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '16px',
+                            height: '16px',
+                            color: 'hsl(220, 9%, 46%)'
+                        }} />
+                        <input
+                            type="text"
+                            placeholder="Search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                height: '36px',
+                                paddingLeft: '36px',
+                                paddingRight: '12px',
+                                fontSize: '14px',
+                                borderRadius: '12px',
+                                border: '1px solid hsl(220, 13%, 91%)',
+                                outline: 'none',
+                                backgroundColor: 'white'
+                            }}
+                        />
+                    </div>
+
+                    {/* Filters */}
+                    <StatusFilterDropdown
+                        selectedStatuses={statusFilter}
+                        onStatusChange={setStatusFilter}
+                        statusOptions={PROMPT_STATUS_OPTIONS}
+                    />
+
+                    {/* Sort */}
+                    <PillButton variant="outline">
+                        <ArrowUpDown style={{ width: '14px', height: '14px' }} />
+                        Sort
+                    </PillButton>
+
+                    {/* New Template Button */}
+                    {canDo(ACTIONS.CREATE_PROMPT) && (
+                        <PrimaryButton onClick={handleCreate} style={{ height: '36px', fontSize: '14px' }}>
+                            <CirclePlus style={{ width: '14px', height: '14px' }} />
+                            New template
+                        </PrimaryButton>
+                    )}
+                </div>
+            </div>
+
+            {/* Card Grid - 4 columns */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '16px'
+            }}>
+                {/* Template Cards */}
+                {sortedTemplates.map(template => {
+                    const status = getStatusConfig(template.status)
+                    const { role, goal, constraints } = parsePromptContent(template.prompt)
+                    // Fix: Handle undefined/null category properly
+                    const categoryLabel = template.isDefault
+                        ? 'Default'
+                        : (!template.category || template.category === 'default'
+                            ? 'Default'
+                            : template.category.charAt(0).toUpperCase() + template.category.slice(1))
+                    const isDefault = template.isDefault === true
 
                     return (
                         <div
                             key={template.id}
-                            className={`bg-card rounded-2xl border border-border/50 p-5 hover:shadow-md transition-all group relative cursor-pointer ${isExpanded ? 'ring-2 ring-primary/50' : ''}`}
-                            onClick={(e) => {
-                                // Don't expand if clicking on menu or buttons
-                                if (e.target.closest('button')) return
-                                setExpandedId(isExpanded ? null : template.id)
+                            onClick={() => setViewingTemplate(template)}
+                            style={{
+                                backgroundColor: 'white',
+                                borderRadius: '16px',
+                                border: isDefault ? '2px solid #FF0084' : '1px solid hsl(220, 13%, 91%)',
+                                padding: '20px',
+                                position: 'relative',
+                                cursor: 'pointer',
+                                minHeight: '280px',
+                                display: 'flex',
+                                flexDirection: 'column'
                             }}
+                            className="shadow-sm hover:shadow-md transition-shadow"
                         >
-                            {/* Category Tag */}
-                            <div className="flex items-center justify-between mb-3">
-                                <span className={`text - xs font - medium px - 2.5 py - 1 rounded - full ${categoryInfo.color} `}>
-                                    {categoryInfo.label}
+                            {/* Header: Category + Menu */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: '12px'
+                            }}>
+                                <span style={{
+                                    display: 'inline-block',
+                                    padding: '4px 12px',
+                                    borderRadius: '9999px',
+                                    fontSize: '12px',
+                                    fontWeight: 500,
+                                    backgroundColor: 'hsl(220, 14%, 96%)',
+                                    color: 'hsl(220, 9%, 46%)'
+                                }}>
+                                    {categoryLabel}
                                 </span>
 
                                 {/* Menu */}
-                                <div className="relative">
-                                    <button
+                                <div style={{ position: 'relative' }} data-menu>
+                                    <IconButton
                                         onClick={() => setOpenMenu(openMenu === template.id ? null : template.id)}
-                                        className="p-1.5 rounded-lg hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                                        style={{ color: 'hsl(220, 9%, 46%)' }}
                                     >
-                                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                                    </button>
+                                        <MoreHorizontal style={{ width: '16px', height: '16px' }} />
+                                    </IconButton>
 
                                     {openMenu === template.id && (
-                                        <div className="absolute right-0 top-full mt-1 bg-card border rounded-xl shadow-lg py-1 w-40 z-10">
+                                        <div style={{
+                                            position: 'absolute',
+                                            right: 0,
+                                            top: '100%',
+                                            marginTop: '4px',
+                                            backgroundColor: 'white',
+                                            border: '1px solid hsl(220, 13%, 91%)',
+                                            borderRadius: '12px',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                            padding: '4px',
+                                            minWidth: '140px',
+                                            zIndex: 10
+                                        }}>
                                             <button
                                                 onClick={() => handleCopy(template)}
-                                                className="w-full px-3 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-slate-50 transition-colors text-slate-700"
                                             >
-                                                <Copy className="w-4 h-4" /> Copy Prompt
+                                                <Copy className="w-4 h-4" />
+                                                Copy
                                             </button>
                                             {canDo(ACTIONS.EDIT_PROMPT) && (
                                                 <button
                                                     onClick={() => handleEdit(template)}
-                                                    className="w-full px-3 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-slate-50 transition-colors text-slate-700"
                                                 >
-                                                    <Pencil className="w-4 h-4" /> Edit
+                                                    <Pencil className="w-4 h-4" />
+                                                    Edit
                                                 </button>
                                             )}
-                                            {canDo(ACTIONS.DELETE_PROMPT) && (
+                                            {canDo(ACTIONS.DELETE_PROMPT) && !isDefault && (
                                                 <button
                                                     onClick={() => { setDeleteConfirm(template.id); setOpenMenu(null) }}
-                                                    className="w-full px-3 py-2 text-sm text-left hover:bg-muted flex items-center gap-2 text-destructive"
+                                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-red-50 transition-colors text-red-600"
                                                 >
-                                                    <Trash2 className="w-4 h-4" /> Delete
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Delete
                                                 </button>
                                             )}
                                         </div>
@@ -376,98 +350,306 @@ export default function PromptLibrary() {
                             </div>
 
                             {/* Title */}
-                            <h3 className="font-semibold text-foreground mb-2">{template.name}</h3>
+                            <h3 style={{
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                color: 'hsl(222, 47%, 11%)',
+                                marginBottom: '12px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                            }}>
+                                {template.name}
+                            </h3>
 
-                            {/* Preview Text */}
-                            {isExpanded ? (
-                                <div className="text-sm text-muted-foreground mb-4 space-y-2">
-                                    <p className="whitespace-pre-wrap bg-muted/50 p-3 rounded-lg max-h-64 overflow-y-auto">
-                                        {template.prompt}
+                            {/* Content Preview - flex-grow to fill space */}
+                            <div style={{ marginBottom: '16px', flex: 1 }}>
+                                {role && (
+                                    <p style={{
+                                        fontSize: '13px',
+                                        color: 'hsl(220, 9%, 46%)',
+                                        marginBottom: '6px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        <span style={{ fontWeight: 500 }}>Role:</span> {role}
                                     </p>
-                                    <p className="text-xs text-muted-foreground/70">Click card to collapse</p>
-                                </div>
-                            ) : (
-                                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                                    {template.prompt?.substring(0, 120)}...
-                                </p>
-                            )}
+                                )}
+                                {goal && (
+                                    <p style={{
+                                        fontSize: '13px',
+                                        color: 'hsl(220, 9%, 46%)',
+                                        marginBottom: '6px',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 3,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: '1.5'
+                                    }}>
+                                        {role ? <><span style={{ fontWeight: 500 }}>Goal:</span> {goal}</> : goal}
+                                    </p>
+                                )}
+                                {constraints && (
+                                    <p style={{
+                                        fontSize: '13px',
+                                        color: 'hsl(220, 9%, 46%)',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        lineHeight: '1.5'
+                                    }}>
+                                        <span style={{ fontWeight: 500 }}>Constraints:</span> {constraints}
+                                    </p>
+                                )}
+                            </div>
 
-                            {/* Footer */}
-                            <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                                {/* Status */}
-                                <span className={`inline - flex items - center gap - 1.5 text - xs font - medium px - 2 py - 1 rounded - full ${STATUS_CONFIG[template.status]?.bg} ${STATUS_CONFIG[template.status]?.color} `}>
-                                    <StatusIcon className="w-3 h-3" />
-                                    {STATUS_CONFIG[template.status]?.label}
+                            {/* Status - at bottom */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginTop: 'auto'
+                            }}>
+                                <span style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: status.color
+                                }} />
+                                <span style={{
+                                    fontSize: '13px',
+                                    color: status.color,
+                                    fontWeight: 500
+                                }}>
+                                    {status.label}
                                 </span>
-
-                                {/* Copy Button */}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleCopy(template)}
-                                    className="rounded-lg text-xs h-8 gap-1.5"
-                                >
-                                    <Copy className="w-3.5 h-3.5" /> Copy
-                                </Button>
                             </div>
                         </div>
                     )
                 })}
-
-                {/* Empty State */}
-                {filteredTemplates.length === 0 && (
-                    <div className="col-span-full py-16 text-center border-2 border-dashed rounded-2xl border-muted">
-                        <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Search className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                        <h3 className="font-semibold mb-1">No prompts found</h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                            {searchQuery ? `No results for "${searchQuery}"` : "Add your first prompt to get started."}
-                        </p>
-                        <Button variant="outline" onClick={() => { setSearchQuery(""); setActiveStatus("all"); setActiveCategory("all") }}>
-                            Clear Filters
-                        </Button>
-                    </div>
-                )}
             </div>
 
-            {/* Footer Stats */}
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Showing {filteredTemplates.length} of {templatesWithDefaults.length} prompts</span>
-            </div>
+            {/* Empty State */}
+            {filteredTemplates.length === 0 && !canDo(ACTIONS.CREATE_PROMPT) && (
+                <div style={{
+                    padding: '64px',
+                    textAlign: 'center',
+                    border: '2px dashed hsl(220, 13%, 91%)',
+                    borderRadius: '16px'
+                }}>
+                    <Search style={{
+                        width: '48px',
+                        height: '48px',
+                        color: 'hsl(220, 9%, 46%)',
+                        margin: '0 auto 16px'
+                    }} />
+                    <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
+                        No prompts found
+                    </h3>
+                    <p style={{ fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
+                        {searchQuery ? `No results for "${searchQuery}"` : "No prompt templates available."}
+                    </p>
+                </div>
+            )}
 
+            {/* Dialog */}
             <PromptDetailDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 initialData={editingTemplate}
                 onSave={handleSave}
-                categories={CATEGORIES}
             />
-
-            {/* Toast */}
-            {toastMessage && (
-                <div className="fixed bottom-6 right-6 bg-zinc-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-4">
-                    <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    {toastMessage}
-                </div>
-            )}
 
             {/* Delete Confirmation */}
             {deleteConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteConfirm(null)}>
-                    <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold mb-2">Delete Prompt?</h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                            This action cannot be undone. Projects using this prompt will be set to "No Category".
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50
+                    }}
+                    onClick={() => setDeleteConfirm(null)}
+                >
+                    <div
+                        style={{
+                            backgroundColor: 'white',
+                            borderRadius: '24px',
+                            padding: '32px',
+                            maxWidth: '400px',
+                            width: '100%',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 style={{
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            marginBottom: '8px'
+                        }}>
+                            Delete Prompt?
+                        </h3>
+                        <p style={{
+                            fontSize: '14px',
+                            color: 'hsl(220, 9%, 46%)',
+                            marginBottom: '24px'
+                        }}>
+                            This action cannot be undone. Projects using this prompt will be set to "Default".
                         </p>
-                        <div className="flex gap-3 justify-end">
-                            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <SecondaryButton onClick={() => setDeleteConfirm(null)}>
                                 Cancel
-                            </Button>
-                            <Button variant="destructive" onClick={() => handleDelete(deleteConfirm)}>
+                            </SecondaryButton>
+                            <Button
+                                variant="destructive"
+                                onClick={() => handleDelete(deleteConfirm)}
+                                className="rounded-xl"
+                            >
                                 Delete
                             </Button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Modal - Shows prompt details */}
+            {viewingTemplate && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50
+                    }}
+                    onClick={() => setViewingTemplate(null)}
+                >
+                    <div
+                        style={{
+                            backgroundColor: 'white',
+                            borderRadius: '24px',
+                            padding: '32px',
+                            maxWidth: '640px',
+                            width: '100%',
+                            maxHeight: '80vh',
+                            overflow: 'auto',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header: Title + Tag + Status Dropdown + Close */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '24px',
+                            paddingBottom: '16px',
+                            borderBottom: '1px solid hsl(220, 13%, 91%)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <h2 style={{
+                                    fontSize: '24px',
+                                    fontWeight: 700,
+                                    color: 'hsl(222, 47%, 11%)'
+                                }}>
+                                    {viewingTemplate.name}
+                                </h2>
+                                <span style={{
+                                    display: 'inline-block',
+                                    padding: '4px 12px',
+                                    borderRadius: '9999px',
+                                    fontSize: '12px',
+                                    fontWeight: 500,
+                                    backgroundColor: 'hsl(220, 14%, 96%)',
+                                    color: 'hsl(220, 9%, 46%)'
+                                }}>
+                                    {viewingTemplate.isDefault ? 'Default' : (viewingTemplate.category || 'Default')}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {/* Status Dropdown */}
+                                <select
+                                    value={viewingTemplate.status || 'draft'}
+                                    onChange={(e) => {
+                                        updateTemplate(viewingTemplate.id, { status: e.target.value })
+                                        setViewingTemplate(prev => ({ ...prev, status: e.target.value }))
+                                    }}
+                                    style={{
+                                        padding: '10px 36px 10px 16px',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        borderRadius: '12px',
+                                        border: '1px solid hsl(220, 13%, 91%)',
+                                        backgroundColor: 'hsl(220, 14%, 98%)',
+                                        color: 'hsl(222, 47%, 11%)',
+                                        cursor: 'pointer',
+                                        appearance: 'none',
+                                        outline: 'none',
+                                        minWidth: '120px',
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 12px center',
+                                        transition: 'border-color 0.15s, box-shadow 0.15s'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#FF0084'}
+                                    onBlur={(e) => e.target.style.borderColor = 'hsl(220, 13%, 91%)'}
+                                >
+                                    <option value="draft">Draft</option>
+                                    <option value="published">Published</option>
+                                </select>
+                                <IconButton onClick={() => setViewingTemplate(null)}>
+                                    <X style={{ width: '20px', height: '20px' }} />
+                                </IconButton>
+                            </div>
+                        </div>
+
+                        {/* Prompt Section */}
+                        <div style={{ marginBottom: '32px' }}>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                color: 'hsl(220, 9%, 46%)',
+                                marginBottom: '12px'
+                            }}>
+                                Prompt
+                            </label>
+                            <div style={{
+                                backgroundColor: 'hsl(220, 14%, 98%)',
+                                borderRadius: '12px',
+                                border: '1px solid hsl(220, 13%, 91%)',
+                                padding: '16px',
+                                fontSize: '14px',
+                                color: 'hsl(222, 47%, 11%)',
+                                whiteSpace: 'pre-wrap',
+                                lineHeight: '1.6'
+                            }}>
+                                {viewingTemplate.prompt}
+                            </div>
+                        </div>
+
+                        {/* Edit Button */}
+                        {canDo(ACTIONS.EDIT_PROMPT) && (
+                            <PrimaryButton
+                                onClick={() => {
+                                    setViewingTemplate(null)
+                                    handleEdit(viewingTemplate)
+                                }}
+                                style={{ fontSize: '14px' }}
+                            >
+                                <Pencil style={{ width: '14px', height: '14px' }} />
+                                Edit Prompt
+                            </PrimaryButton>
+                        )}
                     </div>
                 </div>
             )}

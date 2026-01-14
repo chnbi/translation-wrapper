@@ -1,42 +1,195 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { X } from "lucide-react"
+// PromptDetailDialog - Modal for creating/editing/viewing prompt templates
+// Matches Figma design with shared UI components
+import { useState, useEffect, useRef } from "react"
+import { X, CirclePlus, Sparkles, Check, ChevronDown, Pencil } from "lucide-react"
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
-import { useState, useEffect } from "react"
+    ModalOverlay,
+    ModalContent,
+    FormField,
+    TextInput,
+    PrimaryButton,
+    SecondaryButton,
+    IconButton,
+    COLORS,
+} from "@/components/ui/shared"
 
-// Use-case categories for translation prompts
-const DEFAULT_CATEGORIES = {
-    'banner': { label: 'Banner Slogan', color: 'bg-pink-50 text-pink-600' },
-    'button': { label: 'Button Text', color: 'bg-blue-50 text-blue-600' },
-    'features': { label: 'Features', color: 'bg-violet-50 text-violet-600' },
-    'narratives': { label: 'Narratives', color: 'bg-emerald-50 text-emerald-600' },
-    'news': { label: 'News', color: 'bg-amber-50 text-amber-600' },
-    'legal': { label: 'Legal', color: 'bg-slate-100 text-slate-600' },
-    'social': { label: 'Social Media', color: 'bg-cyan-50 text-cyan-600' },
-    'technical': { label: 'Technical', color: 'bg-orange-50 text-orange-600' },
-}
-
-// Status options
-const STATUS_OPTIONS = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'review', label: 'In Review' },
-    { value: 'published', label: 'Published' },
+// Available tag options
+const TAG_OPTIONS = [
+    'Default',
+    'Banner/Slogan',
+    'CTA/Buttons',
+    'Legal',
+    'Marketing',
+    'Technical',
+    'Social Media',
+    'News',
+    'Narratives'
 ]
 
-export default function PromptDetailDialog({ open, onOpenChange, initialData, onSave, categories = DEFAULT_CATEGORIES }) {
+// Multi-select Tags Dropdown Component
+function TagsDropdown({ selectedTags, onChange, disabled }) {
+    const [isOpen, setIsOpen] = useState(false)
+    const dropdownRef = useRef(null)
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        function handleClickOutside(e) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const toggleTag = (tag) => {
+        if (disabled) return
+        if (selectedTags.includes(tag)) {
+            const newTags = selectedTags.filter(t => t !== tag)
+            onChange(newTags.length ? newTags : ['Default'])
+        } else {
+            // Remove 'Default' if adding a new tag
+            const newTags = selectedTags.filter(t => t !== 'Default')
+            onChange([...newTags, tag])
+        }
+    }
+
+    const removeTag = (tag, e) => {
+        e.stopPropagation()
+        if (disabled) return
+        const newTags = selectedTags.filter(t => t !== tag)
+        onChange(newTags.length ? newTags : ['Default'])
+    }
+
+    return (
+        <div ref={dropdownRef} style={{ position: 'relative' }}>
+            {/* Selected Tags Display - Clickable */}
+            <div
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    minHeight: '48px',
+                    borderRadius: '12px',
+                    border: isOpen ? '1px solid hsl(340, 82%, 59%)' : '1px solid hsl(220, 13%, 91%)',
+                    backgroundColor: 'white',
+                    cursor: disabled ? 'default' : 'pointer',
+                    transition: 'border-color 0.15s',
+                    opacity: disabled ? 0.7 : 1
+                }}
+            >
+                {selectedTags.map((tag) => (
+                    <span
+                        key={tag}
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            backgroundColor: 'hsl(220, 14%, 96%)',
+                            color: 'hsl(222, 47%, 11%)'
+                        }}
+                    >
+                        {tag}
+                        {!disabled && (
+                            <button
+                                type="button"
+                                onClick={(e) => removeTag(tag, e)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '14px',
+                                    height: '14px',
+                                    border: 'none',
+                                    backgroundColor: 'transparent',
+                                    cursor: 'pointer',
+                                    padding: 0
+                                }}
+                            >
+                                <X style={{ width: '12px', height: '12px', color: 'hsl(220, 9%, 46%)' }} />
+                            </button>
+                        )}
+                    </span>
+                ))}
+                {!disabled && (
+                    <ChevronDown style={{
+                        width: '16px',
+                        height: '16px',
+                        marginLeft: 'auto',
+                        color: 'hsl(220, 9%, 46%)',
+                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.15s'
+                    }} />
+                )}
+            </div>
+
+            {/* Dropdown Options */}
+            {isOpen && !disabled && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    backgroundColor: 'white',
+                    border: '1px solid hsl(220, 13%, 91%)',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    padding: '6px',
+                    zIndex: 100,
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                }}>
+                    {TAG_OPTIONS.map((tag) => {
+                        const isSelected = selectedTags.includes(tag)
+                        return (
+                            <button
+                                key={tag}
+                                type="button"
+                                onClick={() => toggleTag(tag)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    width: '100%',
+                                    padding: '10px 12px',
+                                    fontSize: '14px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: isSelected ? 'hsl(340, 82%, 97%)' : 'transparent',
+                                    color: 'hsl(222, 47%, 11%)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                }}
+                                className="hover:bg-slate-50"
+                            >
+                                {tag}
+                                {isSelected && (
+                                    <Check style={{ width: '16px', height: '16px', color: 'hsl(340, 82%, 59%)' }} />
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
+
+
+export default function PromptDetailDialog({ open, onOpenChange, initialData, onSave, viewOnly = false }) {
+    const [isEditing, setIsEditing] = useState(!initialData) // Start in edit mode for new, view mode for existing
     const [formData, setFormData] = useState({
         name: '',
         prompt: '',
-        category: 'narratives',
+        tags: ['Default'],
         status: 'draft'
     })
 
@@ -46,19 +199,23 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                 setFormData({
                     name: initialData.name || '',
                     prompt: initialData.prompt || '',
-                    category: initialData.category || 'narratives',
+                    tags: initialData.tags?.length ? initialData.tags : ['Default'],
                     status: initialData.status || 'draft'
                 })
+                setIsEditing(false) // Start in view mode for existing prompts
             } else {
                 setFormData({
                     name: '',
                     prompt: '',
-                    category: 'narratives',
+                    tags: ['Default'],
                     status: 'draft'
                 })
+                setIsEditing(true) // Start in edit mode for new prompts
             }
         }
     }, [open, initialData])
+
+    if (!open) return null
 
     const handleSave = () => {
         if (!formData.name.trim() || !formData.prompt.trim()) return
@@ -66,80 +223,266 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
         onOpenChange(false)
     }
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>{initialData ? 'Edit Prompt' : 'Create New Prompt'}</DialogTitle>
-                    <DialogDescription>
-                        Create a prompt template for a specific translation use case.
-                    </DialogDescription>
-                </DialogHeader>
+    const isValid = formData.name.trim() && formData.prompt.trim()
+    const isNewPrompt = !initialData
 
-                <div className="grid gap-5 py-4">
-                    {/* Name */}
-                    <div className="space-y-2">
-                        <Label>Prompt Name <span className="text-destructive">*</span></Label>
-                        <Input
-                            placeholder="e.g. Banner Headlines"
-                            value={formData.name}
-                            onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        />
-                    </div>
-
-                    {/* Category & Status Row */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Category</Label>
-                            <select
-                                value={formData.category}
-                                onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                                className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            >
-                                {Object.entries(categories).map(([key, { label }]) => (
-                                    <option key={key} value={key}>{label}</option>
-                                ))}
-                            </select>
+    // VIEW MODE - Show content and Edit button
+    if (!isEditing && initialData) {
+        return (
+            <ModalOverlay onClose={() => onOpenChange(false)}>
+                <ModalContent maxWidth="640px">
+                    {/* Header - Title with tag and status */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <h2 style={{
+                                fontSize: '24px',
+                                fontWeight: 700,
+                                color: 'black'
+                            }}>
+                                {initialData.name || 'Default Template'}
+                            </h2>
+                            {/* Default tag badge */}
+                            {formData.tags?.includes('Default') && (
+                                <span style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: 500,
+                                    backgroundColor: 'hsl(220, 14%, 96%)',
+                                    color: 'hsl(220, 9%, 46%)'
+                                }}>
+                                    Default
+                                </span>
+                            )}
                         </div>
-                        <div className="space-y-2">
-                            <Label>Status</Label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            {/* Status Dropdown */}
                             <select
-                                value={formData.status}
+                                value={formData.status || 'draft'}
                                 onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                                className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                style={{
+                                    padding: '10px 36px 10px 16px',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    borderRadius: '12px',
+                                    border: '1px solid hsl(220, 13%, 91%)',
+                                    backgroundColor: 'hsl(220, 14%, 98%)',
+                                    color: 'hsl(222, 47%, 11%)',
+                                    cursor: 'pointer',
+                                    appearance: 'none',
+                                    outline: 'none',
+                                    minWidth: '100px',
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 12px center'
+                                }}
                             >
-                                {STATUS_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
+                                <option value="draft">Draft</option>
+                                <option value="published">Published</option>
                             </select>
+                            <IconButton onClick={() => onOpenChange(false)}>
+                                <X style={{ width: '18px', height: '18px' }} />
+                            </IconButton>
                         </div>
                     </div>
 
-                    {/* Prompt Text */}
-                    <div className="space-y-2">
-                        <Label>Prompt Template <span className="text-destructive">*</span></Label>
-                        <Textarea
-                            className="h-[180px] font-mono text-sm leading-relaxed"
-                            placeholder="Translate the following text into {target_language}. Maintain a professional tone suitable for banner headlines..."
-                            value={formData.prompt}
-                            onChange={e => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Write instructions for the AI. Be specific about tone, style, and any restrictions.
-                        </p>
+                    {/* Divider */}
+                    <div style={{
+                        height: '1px',
+                        backgroundColor: 'hsl(220, 13%, 91%)',
+                        margin: '16px 0 24px'
+                    }} />
+
+                    {/* Content */}
+                    <div>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: 'hsl(220, 9%, 46%)',
+                            marginBottom: '8px'
+                        }}>
+                            Prompt Content
+                        </label>
+                        <div style={{
+                            padding: '16px',
+                            borderRadius: '12px',
+                            border: '1px solid hsl(220, 13%, 91%)',
+                            backgroundColor: 'white',
+                            fontSize: '14px',
+                            lineHeight: '1.6',
+                            color: 'hsl(222, 47%, 11%)',
+                            whiteSpace: 'pre-wrap',
+                            minHeight: '120px'
+                        }}>
+                            {formData.prompt || 'No content'}
+                        </div>
+
+                        {/* Edit Prompt Button */}
+                        <div style={{ marginTop: '24px' }}>
+                            <PrimaryButton onClick={() => setIsEditing(true)}>
+                                <Pencil style={{ width: '14px', height: '14px' }} />
+                                Edit Prompt
+                            </PrimaryButton>
+                        </div>
+                    </div>
+                </ModalContent>
+            </ModalOverlay>
+        )
+    }
+
+    // EDIT/CREATE MODE
+    return (
+        <ModalOverlay onClose={() => onOpenChange(false)}>
+            <ModalContent maxWidth="640px">
+                {/* Header */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    marginBottom: '4px'
+                }}>
+                    <div>
+                        <h2 style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: 'black',
+                            marginBottom: '4px'
+                        }}>
+                            {isNewPrompt ? 'New prompt template' : 'Edit Template'}
+                        </h2>
+                        {isNewPrompt && (
+                            <p style={{
+                                fontSize: '14px',
+                                color: 'hsl(220, 9%, 46%)',
+                                margin: 0
+                            }}>
+                                Create a prompt template to cater more specific translation use case.
+                            </p>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {/* Status Dropdown */}
+                        <select
+                            value={formData.status || 'draft'}
+                            onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                            style={{
+                                padding: '10px 36px 10px 16px',
+                                fontSize: '14px',
+                                fontWeight: 500,
+                                borderRadius: '12px',
+                                border: '1px solid hsl(220, 13%, 91%)',
+                                backgroundColor: 'hsl(220, 14%, 98%)',
+                                color: 'hsl(222, 47%, 11%)',
+                                cursor: 'pointer',
+                                appearance: 'none',
+                                outline: 'none',
+                                minWidth: '100px',
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'right 12px center',
+                                transition: 'border-color 0.15s, box-shadow 0.15s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = 'hsl(340, 82%, 59%)'}
+                            onBlur={(e) => e.target.style.borderColor = 'hsl(220, 13%, 91%)'}
+                        >
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                        </select>
+                        <IconButton onClick={() => onOpenChange(false)}>
+                            <X style={{ width: '18px', height: '18px' }} />
+                        </IconButton>
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={!formData.name.trim() || !formData.prompt.trim()}
-                    >
-                        {initialData ? 'Save Changes' : 'Create Prompt'}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                {/* Divider */}
+                <div style={{
+                    height: '1px',
+                    backgroundColor: 'hsl(220, 13%, 91%)',
+                    margin: '16px 0 24px'
+                }} />
+
+                {/* Form */}
+                <div>
+                    {/* Template Name */}
+                    <FormField label="Template name" required>
+                        <TextInput
+                            placeholder="E.g. Banner Slogan"
+                            value={formData.name}
+                            onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                    </FormField>
+
+                    {/* Prompt Content */}
+                    <FormField label="Prompt Content" required>
+                        <div style={{ position: 'relative' }}>
+                            <textarea
+                                placeholder="Explain the use case of the prompt. Specify role, requirements, constraints, tone etc to achieve more precise prompt."
+                                value={formData.prompt}
+                                onChange={e => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '120px',
+                                    padding: '12px 16px',
+                                    paddingRight: '40px',
+                                    fontSize: '14px',
+                                    borderRadius: '12px',
+                                    border: '1px solid hsl(220, 13%, 91%)',
+                                    outline: 'none',
+                                    backgroundColor: 'white',
+                                    resize: 'vertical',
+                                    fontFamily: 'inherit',
+                                    lineHeight: '1.5',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+                            {/* AI Sparkle icon */}
+                            <Sparkles style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                width: '16px',
+                                height: '16px',
+                                color: 'hsl(220, 9%, 70%)'
+                            }} />
+                        </div>
+                    </FormField>
+
+                    {/* Tags Section - Clickable multi-select dropdown */}
+                    <FormField label="Tags">
+                        <TagsDropdown
+                            selectedTags={formData.tags || ['Default']}
+                            onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags.length ? newTags : ['Default'] }))}
+                        />
+                    </FormField>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
+                        <SecondaryButton onClick={() => {
+                            if (initialData) {
+                                setIsEditing(false) // Go back to view mode
+                            } else {
+                                onOpenChange(false) // Close for new prompts
+                            }
+                        }}>
+                            Cancel
+                        </SecondaryButton>
+                        <PrimaryButton
+                            onClick={handleSave}
+                            disabled={!isValid}
+                        >
+                            <CirclePlus style={{ width: '14px', height: '14px' }} />
+                            {isNewPrompt ? 'Create prompt' : 'Update Prompt'}
+                        </PrimaryButton>
+                    </div>
+                </div>
+            </ModalContent>
+        </ModalOverlay>
     )
 }
+
