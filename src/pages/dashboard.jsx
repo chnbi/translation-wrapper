@@ -1,391 +1,256 @@
-// Dashboard - Quick Actions + Recent Projects Table
-import { useState } from "react"
-import { Plus, Upload, FileText, Settings, LayoutGrid, List, FileSpreadsheet, MoreHorizontal, Pencil, Trash2, CheckSquare } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useState, useRef } from "react"
+import { Folder, MoreHorizontal, Plus, Upload } from "lucide-react"
+import NewProjectForm from "@/components/NewProjectForm"
+import { useProjects } from "@/context/ProjectContext"
+import { toast } from "sonner"
+import * as XLSX from "xlsx"
+import { parseExcelFile } from "@/lib/excel"
+import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ImportExcelDialog } from "@/components/dialogs"
-import NewProjectForm from "@/components/NewProjectForm"
-import { useProjects } from "@/context/ProjectContext"
-import { useAuth, ACTIONS } from "@/App"
-import { PROJECT_THEMES } from "@/components/ui/shared"
-import { PageHeader, SearchInput } from "@/components/ui/common"
-
-const quickActions = [
-    {
-        id: "new",
-        icon: Plus,
-        label: "New Project",
-        description: "Start with a blank file",
-        color: "bg-primary text-primary-foreground",
-        iconColor: "text-primary-foreground"
-    },
-    {
-        id: "import",
-        icon: Upload,
-        label: "Import File",
-        description: "Excel, CSV & more",
-        color: "bg-amber-50 dark:bg-amber-900/20",
-        iconColor: "text-amber-600 dark:text-amber-400"
-    },
-    {
-        id: "template",
-        icon: FileText,
-        label: "Use Template",
-        description: "Choose from templates",
-        color: "bg-blue-50 dark:bg-blue-900/20",
-        iconColor: "text-blue-600 dark:text-blue-400"
-    },
-    {
-        id: "settings",
-        icon: Settings,
-        label: "Settings",
-        description: "Configure preferences",
-        color: "bg-zinc-100 dark:bg-zinc-800",
-        iconColor: "text-zinc-600 dark:text-zinc-400"
-    },
-]
-
-const statusColors = {
-    "draft": "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-    "in-progress": "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-    "completed": "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-}
+import { Button } from "@/components/ui/button"
 
 export default function Dashboard() {
-    const { projects, addProject, deleteProject, isLoading, dataSource, addProjectPage } = useProjects()
-    const { canDo } = useAuth()
-    const [searchQuery, setSearchQuery] = useState("")
-    const [viewMode, setViewMode] = useState("list")
-    const [isImportOpen, setIsImportOpen] = useState(false)
+    const { projects, deleteProject, addProject } = useProjects()
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
-    const [deleteConfirm, setDeleteConfirm] = useState(null)
+    const fileInputRef = useRef(null)
 
-    const filteredProjects = projects.filter(p =>
-        p.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-
-    const handleDelete = async (id) => {
-        await deleteProject(id)
-        setDeleteConfirm(null)
+    const handleCreateProject = async (projectData) => {
+        const result = await addProject(projectData)
+        setIsNewProjectOpen(false)
+        if (result?.id) {
+            toast.success("New project created!")
+            window.location.hash = `#project/${result.id}${result.firstPageId ? `?page=${result.firstPageId}` : ''}`
+        }
     }
 
-    const handleImport = async (data) => {
-        // Calculate total rows from all pages
-        const totalRows = data.pages?.reduce((sum, p) => sum + (p.rows?.length || 0), 0) || 0
+    const handleImportProject = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
 
-        const newProject = {
-            name: data.projectName,
-            pages: data.pages?.length || 1,
-            totalRows: totalRows,
-            sourceLanguage: 'English',
-            targetLanguages: ['Bahasa Malaysia', 'Chinese'],
-            team: [],
-            color: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
-        }
+        try {
+            const data = await parseExcelFile(file)
+            // Data is { Sheet1: { entries: [...] }, Sheet2: { entries: [...] } }
+            // We need to map this to { Sheet1: [...rows], Sheet2: [...rows] }
 
-        const created = await addProject(newProject)
+            const sheets = {}
+            Object.values(data).forEach(sheet => {
+                sheets[sheet.name] = sheet.entries.map(entry => ({
+                    en: entry.english || '',
+                    my: entry.malay || '',
+                    zh: entry.chinese || ''
+                }))
+            })
 
-        if (created?.id) {
-            // Add pages with actual row data using context function
-            for (const page of (data.pages || [])) {
-                if (page.rows && page.rows.length > 0) {
-                    try {
-                        await addProjectPage(created.id, { name: page.name }, page.rows)
-                    } catch (error) {
-                        console.error('Error creating page:', error)
-                    }
-                }
+            const projectName = file.name.replace(/\.[^/.]+$/, "")
+            const result = await addProject({
+                name: projectName,
+                description: 'Imported from Excel',
+                targetLanguages: ['my', 'zh'],
+                sheets: sheets // Pass processed sheets
+            })
+
+            if (result?.id) {
+                toast.success(`Imported "root" successfully! Redirecting...`)
+                // Use setTimeout to allow toast to be seen briefly/ensure state update
+                setTimeout(() => {
+                    window.location.hash = `#project/${result.id}${result.firstPageId ? `?page=${result.firstPageId}` : ''}`
+                }, 500)
             }
 
-            // Navigate to the new project
-            window.location.hash = `#project/${created.id}`
+        } catch (error) {
+            console.error("Import failed:", error)
+            toast.error("Failed to import project: " + error.message)
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = ''
         }
     }
 
-    const handleNewProject = async (projectData) => {
-        const created = await addProject(projectData)
-        if (created?.id) {
-            // Auto-create a default subpage
-            try {
-                const page = await addProjectPage(created.id, { name: 'Page 1' })
-                // Navigate to the subpage
-                if (page?.id) {
-                    window.location.hash = `#project/${created.id}?page=${page.id}`
-                } else {
-                    window.location.hash = `#project/${created.id}`
-                }
-            } catch (error) {
-                console.error('Error creating default page:', error)
-                window.location.hash = `#project/${created.id}`
-            }
+    // Compute Stats
+    const totalProjects = projects.length
+    const drafts = projects.filter(p => !p.status || p.status === 'draft').length
+    const pendingApproval = projects.filter(p => p.status === 'review').length
+    const completed = projects.filter(p => p.status === 'approved' || p.status === 'completed').length
+
+    // Sort Recent Projects - showing top 5
+    const recentProjects = [...projects]
+        .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0))
+        .slice(0, 5)
+
+    // Helper for relative time
+    const timeAgo = (dateStr) => {
+        if (!dateStr) return '-'
+        const date = new Date(dateStr)
+        const now = new Date()
+        const diffInSeconds = Math.floor((now - date) / 1000)
+
+        if (diffInSeconds < 60) return 'a second ago'
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`
+        return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'review': return 'bg-orange-400'
+            case 'approved': return 'bg-emerald-400'
+            case 'completed': return 'bg-emerald-400'
+            case 'in-progress': return 'bg-blue-400'
+            case 'draft':
+            default: return 'bg-slate-300'
         }
     }
 
-    const handleQuickAction = (actionId) => {
-        switch (actionId) {
-            case "import":
-                setIsImportOpen(true)
-                break
-            case "settings":
-                window.location.hash = "#settings"
-                break
-            case "new":
-                setIsNewProjectOpen(true)
-                break
-            case "template":
-                window.location.hash = "#prompt"
-                break
-        }
+    const getStatusLabel = (status) => {
+        if (!status) return 'Draft'
+        if (status === 'review') return 'Review'
+        if (status === 'in-progress') return 'In Progress'
+        return status.charAt(0).toUpperCase() + status.slice(1)
     }
 
     return (
-        <div className="space-y-8 w-full pb-10">
+        <div className="w-full pb-10 space-y-8">
             {/* Page Title */}
-            <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '4px', color: 'hsl(222, 47%, 11%)' }}>
-                Home
+            <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', color: 'hsl(222, 47%, 11%)' }}>
+                Overview
             </h1>
 
-            {/* Header - Search */}
-            <div className="flex items-center justify-between">
-                <div className="relative w-80">
-                    <Input
-                        placeholder="Search projects..."
-                        className="rounded-xl"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {quickActions.map((action, i) => {
-                    const Icon = action.icon
-                    return (
-                        <button
-                            key={i}
-                            onClick={() => handleQuickAction(action.id)}
-                            className={`p-5 rounded-2xl text-left transition-all hover:shadow-card-hover hover:scale-[1.02] ${action.color} ${i === 0 ? '' : 'border border-border/50'}`}
-                        >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${i === 0 ? 'bg-white/20' : 'bg-white dark:bg-zinc-900'}`}>
-                                <Icon className={`w-5 h-5 ${action.iconColor}`} />
-                            </div>
-                            <p className={`font-semibold ${i === 0 ? 'text-primary-foreground' : 'text-foreground'}`}>
-                                {action.label}
-                            </p>
-                            <p className={`text-sm mt-0.5 ${i === 0 ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                                {action.description}
-                            </p>
-                        </button>
-                    )
-                })}
-
-                {/* Manager Shortcut */}
-                {canDo('approve_translation') && (
-                    <button
-                        onClick={() => window.location.hash = "#approvals"}
-                        className="p-5 rounded-2xl text-left transition-all hover:shadow-card-hover hover:scale-[1.02] bg-white border border-border/50 group" // Clean white card by default
-                    >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 bg-secondary-pink text-white"> // Pink icon background
-                            <CheckSquare className="w-5 h-5" />
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'Total projects', count: totalProjects },
+                    { label: 'Drafts', count: drafts },
+                    { label: 'Pending Approval', count: pendingApproval },
+                    { label: 'Completed', count: completed }
+                ].map((stat, i) => (
+                    <div key={i} className="rounded-3xl p-6 flex items-center gap-6 h-32 border" style={{ backgroundColor: '#FFF0F7', borderColor: '#FFD1E6' }}>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#FF4AA7' }}>
+                            <Folder className="w-6 h-6 text-white" />
                         </div>
-                        <p className="font-semibold text-foreground group-hover:text-secondary-pink transition-colors"> // Hover effect
-                            Manage Approvals
-                        </p>
-                        <p className="text-sm mt-0.5 text-muted-foreground">
-                            Review pending translations
-                        </p>
-                    </button>
-                )}
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center justify-end">
-                <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg">
-                    <button
-                        onClick={() => setViewMode("grid")}
-                        className={`p-2 rounded-md transition-colors ${viewMode === "grid" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                        <LayoutGrid className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setViewMode("list")}
-                        className={`p-2 rounded-md transition-colors ${viewMode === "list" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                        <List className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Projects Table */}
-            <div className="rounded-2xl bg-card shadow-card overflow-hidden">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/30 border-b text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <div className="col-span-5 flex items-center gap-1">
-                        <FileSpreadsheet className="w-3.5 h-3.5" />
-                        Project name
+                        <div>
+                            <p className="text-gray-500 text-sm font-medium mb-1">{stat.label}</p>
+                            <h3 className="text-4xl font-bold text-gray-900 leading-none">{stat.count}</h3>
+                        </div>
                     </div>
-                    <div className="col-span-2">Status</div>
-                    <div className="col-span-2">Progress</div>
-                    <div className="col-span-2">Last modified</div>
-                    <div className="col-span-1"></div>
+                ))}
+            </div>
+
+            {/* Recent Projects */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-900">Recent projects</h2>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImportProject}
+                            accept=".xlsx,.xls,.csv"
+                            className="hidden"
+                        />
+                        <Button
+                            onClick={() => fileInputRef.current?.click()}
+                            variant="outline"
+                            className="rounded-full px-4 h-9 bg-gray-100 border-0 hover:bg-gray-200 text-gray-700"
+                        >
+                            <Upload className="w-4 h-4 mr-2" /> Import file
+                        </Button>
+                        <Button onClick={() => setIsNewProjectOpen(true)} className="bg-[#FF0084] hover:bg-[#E60077] text-white rounded-full px-4 h-9">
+                            <Plus className="w-4 h-4 mr-2" /> New Project
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Table Rows */}
-                <div className="divide-y divide-border/50">
-                    {filteredProjects.map((project) => (
-                        <a
-                            key={project.id}
-                            href={`#project/${project.id}`}
-                            className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/30 transition-colors"
-                        >
-                            {/* Project Name */}
-                            <div className="col-span-5 flex items-center gap-3">
-                                {(() => {
-                                    // Determine theme: use project.themeColor, or default to pink
-                                    // Handle legacy imported projects which might not have themeColor
-                                    const theme = PROJECT_THEMES.find(t => t.id === project.themeColor) || PROJECT_THEMES[0]
-
-                                    return (
-                                        <div
-                                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                            style={{ backgroundColor: theme.color }}
-                                        >
-                                            <FileSpreadsheet
-                                                className="w-4 h-4"
-                                                style={{ color: theme.iconColor }}
-                                            />
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="hover:bg-transparent border-b border-gray-100">
+                                <TableHead className="w-[30%] pl-6 bg-white">Project</TableHead>
+                                <TableHead className="bg-white">Status</TableHead>
+                                <TableHead className="w-[20%] bg-white">Progress</TableHead>
+                                <TableHead className="bg-white">Last modified</TableHead>
+                                <TableHead className="bg-white">Category</TableHead>
+                                <TableHead className="w-[50px] bg-white"></TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {recentProjects.map((project) => (
+                                <TableRow key={project.id} className="hover:bg-slate-50/50 border-b border-gray-100 last:border-0 cursor-pointer" onClick={() => window.location.hash = `#project/${project.id}`}>
+                                    <TableCell className="pl-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#9CA3AF' }}>
+                                                <Folder className="w-4 h-4 text-white" />
+                                            </div>
+                                            <span className="font-medium text-gray-900">{project.name}</span>
                                         </div>
-                                    )
-                                })()}
-                                <div>
-                                    <p className="font-medium text-foreground">{project.name}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {project.totalRows || 0} rows • {project.sourceLanguage} → {project.targetLanguages?.join(', ')}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Status */}
-                            <div className="col-span-2">
-                                <Badge variant="secondary" className={`text-xs ${statusColors[project.status] || statusColors.draft}`}>
-                                    {(project.status || 'draft').replace("-", " ")}
-                                </Badge>
-                            </div>
-
-                            {/* Progress */}
-                            <div className="col-span-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-primary rounded-full transition-all"
-                                            style={{ width: `${project.progress || 0}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-xs text-muted-foreground w-8">{project.progress || 0}%</span>
-                                </div>
-                            </div>
-
-                            {/* Last Modified */}
-                            <div className="col-span-2 flex items-center gap-2">
-                                <div className="flex -space-x-2">
-                                    {(project.team || []).slice(0, 3).map((c, i) => (
-                                        <Avatar key={i} className="h-6 w-6 border-2 border-card">
-                                            <AvatarFallback className="text-[10px] bg-muted">
-                                                {c.initials}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                    ))}
-                                </div>
-                                <span className="text-sm text-muted-foreground">
-                                    {project.lastUpdated
-                                        ? new Date(project.lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                        : 'Recently'}
-                                </span>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="col-span-1 flex justify-end" onClick={e => e.preventDefault()}>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => window.location.hash = `#project/${project.id}`}>
-                                            <Pencil className="w-4 h-4 mr-2" /> Open
-                                        </DropdownMenuItem>
-                                        {canDo(ACTIONS.DELETE_PROJECT) && (
-                                            <DropdownMenuItem
-                                                onClick={() => setDeleteConfirm(project.id)}
-                                                className="text-destructive focus:text-destructive"
-                                            >
-                                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                                            </DropdownMenuItem>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </a>
-                    ))}
-
-                    {/* Empty State */}
-                    {filteredProjects.length === 0 && (
-                        <div className="py-16 text-center">
-                            <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                                <FileSpreadsheet className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                            <h3 className="font-semibold mb-1">No projects found</h3>
-                            <p className="text-muted-foreground text-sm">
-                                {searchQuery ? `No results for "${searchQuery}"` : "Import a file or create a new project to get started."}
-                            </p>
-                        </div>
-                    )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${getStatusColor(project.status)}`} />
+                                            <span className="text-sm text-gray-500">{getStatusLabel(project.status)}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            {/* Progress Bar styled to match image (Teal/Blue) */}
+                                            <Progress value={project.progress || 0} className="h-1.5 bg-gray-100 w-24 [&>div]:bg-[#5174FF]" />
+                                            <span className="text-xs text-gray-400 w-8">{project.progress || 0}%</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className="text-sm text-gray-900 font-medium whitespace-nowrap">
+                                            {timeAgo(project.lastUpdated || project.createdAt)}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary" className="bg-gray-100 text-gray-500 hover:bg-gray-100 font-normal border-0">
+                                            Default
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
+                                                    <span className="sr-only">Open menu</span>
+                                                    <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteProject(project.id) }} className="text-red-600 focus:text-red-600">
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {recentProjects.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-32 text-center text-gray-500">
+                                        No recent projects found.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
-
-            {/* Delete Confirmation Dialog */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-card rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-                        <h3 className="text-lg font-semibold mb-2">Delete Project?</h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                            This action cannot be undone. The project and all its translations will be permanently deleted.
-                        </p>
-                        <div className="flex gap-3 justify-end">
-                            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
-                                Cancel
-                            </Button>
-                            <Button variant="destructive" onClick={() => handleDelete(deleteConfirm)}>
-                                Delete
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <ImportExcelDialog
-                open={isImportOpen}
-                onOpenChange={setIsImportOpen}
-                onImport={handleImport}
-            />
-
             <NewProjectForm
                 isOpen={isNewProjectOpen}
                 onClose={() => setIsNewProjectOpen(false)}
-                onSubmit={(data) => {
-                    handleNewProject(data)
-                    setIsNewProjectOpen(false)
-                }}
+                onSubmit={handleCreateProject}
             />
         </div>
     )

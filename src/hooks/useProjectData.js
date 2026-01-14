@@ -308,8 +308,10 @@ export function useProjectData() {
 
     // Add a new project
     const addProject = useCallback(async (project) => {
+        const { sheets, ...projectMeta } = project
+
         const projectData = {
-            ...project,
+            ...projectMeta,
             status: 'draft',
             progress: 0,
             translatedRows: 0,
@@ -317,32 +319,85 @@ export function useProjectData() {
             lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         }
 
+        let createdProjectId
+        let firstPageId = null
+
         if (dataSource === 'firestore') {
             try {
+                // 1. Create Project
                 const created = await firestoreService.createProject(projectData)
-                const newProject = { ...projectData, id: created.id }
+                createdProjectId = created.id
+
+                const newProject = { ...projectData, id: createdProjectId }
                 setProjects(prev => [newProject, ...prev])
-                setProjectRows(prev => ({ ...prev, [created.id]: [] }))
-                // Initialize projectPages structure for new project
+                setProjectRows(prev => ({ ...prev, [createdProjectId]: [] }))
                 setProjectPages(prev => ({
                     ...prev,
-                    [created.id]: { pages: [], pageRows: {} }
+                    [createdProjectId]: { pages: [], pageRows: {} }
                 }))
-                return newProject
+
+                // 2. Process Sheets (if any) or Default Page
+                if (sheets && Object.keys(sheets).length > 0) {
+                    const sheetNames = Object.keys(sheets)
+                    for (const [index, sheetName] of sheetNames.entries()) {
+                        const rows = sheets[sheetName]
+
+                        // Create Page
+                        const page = await firestoreService.addProjectPage(createdProjectId, { name: sheetName })
+                        if (index === 0) firstPageId = page.id
+
+                        // Add Rows
+                        const rowsWithIds = rows.map((row, idx) => ({
+                            ...row,
+                            id: crypto.randomUUID(),
+                            status: 'draft'
+                        }))
+                        await firestoreService.addPageRows(createdProjectId, page.id, rowsWithIds)
+
+                        // Update Local State for Page
+                        setProjectPages(prev => ({
+                            ...prev,
+                            [createdProjectId]: {
+                                ...prev[createdProjectId],
+                                pages: [...(prev[createdProjectId]?.pages || []), page],
+                                pageRows: {
+                                    ...(prev[createdProjectId]?.pageRows || {}),
+                                    [page.id]: rowsWithIds
+                                }
+                            }
+                        }))
+                    }
+                } else {
+                    // Create default "Page 1" for new empty projects
+                    const page = await firestoreService.addProjectPage(createdProjectId, { name: 'Page 1' })
+                    firstPageId = page.id
+
+                    setProjectPages(prev => ({
+                        ...prev,
+                        [createdProjectId]: {
+                            ...prev[createdProjectId],
+                            pages: [page],
+                            pageRows: { [page.id]: [] }
+                        }
+                    }))
+                }
+
+                return { ...newProject, firstPageId }
+
             } catch (error) {
                 console.error('Error creating project in Firestore:', error)
                 throw error
             }
         } else {
+            // Mock Implementation checks...
             const newProject = { ...projectData, id: String(Date.now()) }
             setProjects(prev => [newProject, ...prev])
             setProjectRows(prev => ({ ...prev, [newProject.id]: [] }))
-            // Initialize projectPages structure for new project
             setProjectPages(prev => ({
                 ...prev,
                 [newProject.id]: { pages: [], pageRows: {} }
             }))
-            return newProject
+            return { ...newProject, firstPageId: null }
         }
     }, [dataSource])
 
@@ -445,7 +500,7 @@ export function useProjectData() {
         if (allRows.length === 0) return
 
         const totalRows = allRows.length
-        const completedRows = allRows.filter(r => r.status === 'completed').length
+        const completedRows = allRows.filter(r => r.status === 'completed' || r.status === 'approved').length
         const pendingReview = allRows.filter(r => r.status === 'review').length
         const progress = Math.round((completedRows / totalRows) * 100)
 

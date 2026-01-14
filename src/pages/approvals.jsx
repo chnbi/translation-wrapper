@@ -9,7 +9,7 @@ import { DataTable } from "@/components/ui/DataTable"
 import { toast } from "sonner"
 
 export default function Approvals() {
-    const { projects, getProjectPages, getPageRows, getProjectRows, updateProjectRow } = useProjects()
+    const { projects, getProjectPages, getPageRows, getProjectRows, updateProjectRow, recomputeProjectStats } = useProjects()
     const { terms: glossaryTerms, updateTerm: updateGlossaryTerm } = useGlossary()
     const [searchQuery, setSearchQuery] = useState("")
     const [activeTab, setActiveTab] = useState("projects") // "projects" or "glossary"
@@ -143,9 +143,20 @@ export default function Approvals() {
         try {
             if (activeTab === "projects") {
                 // Process approved project rows
-                for (const row of filteredRows.filter(r => approvedIds.includes(r.id))) {
-                    await updateProjectRow(row.projectId, row.id, { status: 'approved' })
+                const approvedRows = filteredRows.filter(r => approvedIds.includes(r.id))
+                const affectedProjectIds = new Set()
+
+                for (const row of approvedRows) {
+                    await updateProjectRow(row.projectId, row.id, {
+                        status: 'approved',
+                        approvedAt: new Date().toISOString()
+                    })
+                    affectedProjectIds.add(row.projectId)
                 }
+
+                // Recompute stats for affected projects
+                affectedProjectIds.forEach(pid => recomputeProjectStats(pid))
+
                 // Process rejected project rows - set status to 'changes'
                 for (const row of filteredRows.filter(r => rejectedIds.includes(r.id))) {
                     await updateProjectRow(row.projectId, row.id, { status: 'changes' })

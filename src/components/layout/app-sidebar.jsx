@@ -38,6 +38,7 @@ import {
 import { useProjects } from "@/context/ProjectContext"
 import { useGlossary } from "@/context/GlossaryContext"
 import { usePrompts } from "@/context/PromptContext"
+import { useApprovalNotifications } from "@/hooks/useApprovalNotifications"
 import {
   Collapsible,
   CollapsibleContent,
@@ -127,7 +128,7 @@ const navEssentials = [
     icon: Edit3,
   },
   {
-    title: "Translate",
+    title: "Image Translate",
     url: "#image-translate",
     icon: Languages,
   },
@@ -164,6 +165,7 @@ function ProjectWithPages({
   onRenamePage,
   isExpanded,
   onProjectClick,
+  getPageBadge
 }) {
   const [hoveredProject, setHoveredProject] = React.useState(false)
   const [hoveredPageId, setHoveredPageId] = React.useState(null)
@@ -323,6 +325,15 @@ function ProjectWithPages({
                             {page.name}
                           </span>
 
+                          {/* Approval Badge */}
+                          {getPageBadge && getPageBadge(page.id) > 0 && (
+                            <span className="ml-2 text-[10px] font-semibold text-white bg-[#FF0084] rounded-full px-1.5 h-4 min-w-[16px] flex items-center justify-center">
+                              {getPageBadge(page.id)}
+                            </span>
+                          )}
+
+
+
                           {/* Hover icons for page */}
                           {isHovered && (
                             <div className="flex items-center gap-0.5 ml-auto" style={{ flexShrink: 0 }}>
@@ -411,6 +422,7 @@ export function AppSidebar({ ...props }) {
   } = useProjects()
   const { terms: glossaryTerms } = useGlossary()
   const { prompts } = usePrompts()
+  const { getNewApprovalCount } = useApprovalNotifications()
   const [settingsOpen, setSettingsOpen] = React.useState(true)
   const [currentHash, setCurrentHash] = React.useState(window.location.hash)
   const [expandedProjectId, setExpandedProjectId] = React.useState(null)
@@ -514,7 +526,7 @@ export function AppSidebar({ ...props }) {
   const navEssentialsWithBadges = [
     // { title: "Projects", url: "#projects", icon: Folder, badge: projectsInProgress }, // Removed as per request
     { title: "Approvals", url: "#approvals", icon: Edit3, badge: pendingApprovals > 0 ? pendingApprovals : undefined },
-    { title: "Translate", url: "#image-translate", icon: Languages },
+    { title: "Image Translation", url: "#image-translate", icon: Languages },
     { title: "Quick Check", url: "#quick-check", icon: Sparkles },
     { title: "Glossary", url: "#glossary", icon: BookOpen, badge: glossaryApprovedCount > 0 ? glossaryApprovedCount : undefined },
     { title: "Prompt Library", url: "#prompt", icon: Library }, // Approved count for Glossary
@@ -559,6 +571,10 @@ export function AppSidebar({ ...props }) {
                   onRenamePage={handleRenamePage}
                   isExpanded={expandedProjectId === project.id}
                   onProjectClick={handleProjectClick}
+                  getPageBadge={(pageId) => {
+                    const rows = getPageRows(project.id, pageId)
+                    return getNewApprovalCount(project.id, pageId, rows)
+                  }}
                 />
               )
             })}

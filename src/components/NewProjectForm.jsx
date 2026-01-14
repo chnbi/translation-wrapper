@@ -37,7 +37,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
 
     const handleSubmit = (e) => {
         e.preventDefault()
-        if (!projectName.trim() || !description.trim()) return
+        if (!projectName.trim()) return
 
         onSubmit({
             name: projectName.trim(),
@@ -103,13 +103,12 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                     </FormField>
 
                     {/* Project Description */}
-                    <FormField label="Project Description" required labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
+                    <FormField label="Project Description (Optional)" labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
                         <TextInput
                             placeholder="Text"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             style={{ height: '44px' }}
-                            required
                         />
                     </FormField>
 
@@ -156,42 +155,6 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                         </div>
                     </FormField>
 
-                    {/* Project Colour */}
-                    <FormField label="Project Colour" labelStyle={{ fontSize: '14px', fontWeight: 500, color: '#6B7280', marginBottom: '8px' }}>
-                        <div style={{
-                            display: 'flex',
-                            gap: '12px',
-                        }}>
-                            {PROJECT_THEMES.map(theme => {
-                                const isSelected = selectedTheme === theme.id
-                                return (
-                                    <button
-                                        key={theme.id}
-                                        type="button"
-                                        onClick={() => setSelectedTheme(theme.id)}
-                                        style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            borderRadius: '8px',
-                                            backgroundColor: theme.color,
-                                            border: `1px solid ${theme.border}`,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'transform 0.1s',
-                                            transform: isSelected ? 'scale(1.1)' : 'none',
-                                            boxShadow: isSelected ? `0 0 0 2px white, 0 0 0 4px ${theme.border}` : 'none'
-                                        }}
-                                    >
-                                        {/* Optional: Checkmark for better visibility of selection */}
-                                        {/* {isSelected && <Check style={{ width: '18px', height: '18px', color: theme.border }} />} */}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </FormField>
-
                     {/* Action Buttons */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '32px' }}>
                         <SecondaryButton onClick={onClose}>
@@ -199,7 +162,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                         </SecondaryButton>
                         <PrimaryButton
                             type="submit"
-                            disabled={!projectName.trim() || !description.trim() || selectedLanguages.length === 0}
+                            disabled={!projectName.trim() || selectedLanguages.length === 0}
                         >
                             Create project
                         </PrimaryButton>
@@ -209,4 +172,3 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
         </ModalOverlay>
     )
 }
-

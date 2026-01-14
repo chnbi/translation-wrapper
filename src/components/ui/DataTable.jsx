@@ -26,6 +26,7 @@ export function DataTable({
     sortConfig,
     onSort,
     scrollable = false,
+    getRowStyle,
     children
 }) {
     // Normalize selection check
@@ -107,15 +108,21 @@ export function DataTable({
                         ) : (
                             data.map((row, rowIndex) => {
                                 const selected = onToggleSelect ? isSelected(row.id) : false
+                                const customStyle = getRowStyle ? getRowStyle(row) : {}
+                                const bgColor = selected ? 'hsl(340, 82%, 59%, 0.05)' : (customStyle.backgroundColor || 'transparent')
+
                                 return (
                                     <tr
                                         key={row.id || rowIndex}
                                         onClick={() => onRowClick && onRowClick(row)}
                                         style={{
                                             borderBottom: '1px solid hsl(220, 13%, 91%)',
-                                            backgroundColor: selected ? 'hsl(340, 82%, 59%, 0.05)' : 'transparent',
+                                            backgroundColor: bgColor,
                                             cursor: onRowClick ? 'pointer' : 'default',
-                                            transition: 'background-color 0.1s'
+                                            transition: 'background-color 0.1s',
+                                            ...customStyle,
+                                            // Ensure backgroundColor is handled above to avoid conflict
+                                            backgroundColor: bgColor
                                         }}
                                         className={onRowClick ? "hover:bg-slate-50/50" : ""}
                                     >

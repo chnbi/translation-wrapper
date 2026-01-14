@@ -7,6 +7,7 @@ import { COLORS, PillButton, TableActionButton, PrimaryButton } from "@/componen
 import { useProjects } from "@/context/ProjectContext"
 import { usePrompts } from "@/context/PromptContext"
 import { useGlossary } from "@/context/GlossaryContext"
+import { useApprovalNotifications } from "@/hooks/useApprovalNotifications"
 import { useAuth } from "@/App"
 import * as XLSX from "xlsx"
 import { parseExcelFile } from "@/lib/excel"
@@ -48,6 +49,7 @@ export default function ProjectView({ projectId }) {
     const { templates } = usePrompts()
     const { terms: glossaryTerms } = useGlossary()
     const { canDo } = useAuth()
+    const { markAsViewed, isRowNew } = useApprovalNotifications()
 
     const [isAddingRow, setIsAddingRow] = useState(false)
     const [newRowData, setNewRowData] = useState({ en: '', my: '', zh: '' })
@@ -81,6 +83,13 @@ export default function ProjectView({ projectId }) {
             }
         }
     }, [pageIdFromUrl, pages, id, currentPageId, selectPage])
+
+    // Track view for approval notifications
+    useEffect(() => {
+        if (id && currentPageId) {
+            markAsViewed(id, currentPageId)
+        }
+    }, [id, currentPageId, markAsViewed])
 
     // Timeout for waiting for newly created project (race condition)
     useEffect(() => {
@@ -675,6 +684,7 @@ export default function ProjectView({ projectId }) {
                 onToggleSelectAll={handleSelectAll}
                 onRowClick={(row) => console.log('Row clicked', row)}
                 scrollable={true}
+                getRowStyle={(row) => isRowNew(id, currentPageId, row) ? { backgroundColor: '#FFF0F7' } : {}}
             >
                 {/* Inline Add Row */}
                 {isAddingRow && (
