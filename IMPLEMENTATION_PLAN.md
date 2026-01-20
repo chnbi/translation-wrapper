@@ -1,14 +1,14 @@
 # Implementation Plan - Translation Wrapper
 
-> **Last Updated:** 2026-01-08
+> **Last Updated:** 2026-01-16
 > **Status:** Active Development
 
 ---
 
 ## Phase 1: Core Feature Completion ✅ → In Progress
 
-### 1.1 Per-Row Prompt Assignment [90% DONE]
-**Status:** UI implemented, auto-grouping logic done
+### 1.1 Per-Row Prompt Assignment [100% DONE]
+**Status:** Fully implemented with grouped translation
 
 | Step | Task | Status |
 |------|------|--------|
@@ -16,8 +16,27 @@
 | 2 | Add "Assign Prompt" dropdown to bulk actions bar | ✅ Done |
 | 3 | Display prompt badge in InlineRow component | ✅ Done |
 | 4 | Implement auto-grouping by promptId in ProjectContext | ✅ Done |
-| 5 | Add "Prompt" column header to table view | ⬜ Pending |
-| 6 | Test with mixed prompt assignments | ⬜ Pending |
+| 5 | Add "Prompt Category" column to table view | ✅ Done |
+| 6 | Grouped translation by promptId | ✅ Done |
+
+### 1.2 Prompt Merging Logic [100% DONE]
+**Status:** Custom prompts append to default
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Default prompt is always used as base | ✅ Done |
+| 2 | Custom prompts append to default (not replace) | ✅ Done |
+| 3 | Mixed selections grouped by promptId | ✅ Done |
+| 4 | Separate API calls per prompt group | ✅ Done |
+
+### 1.3 Glossary Highlighting [100% DONE]
+**Status:** Visual highlighting of glossary terms
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Create `GlossaryHighlighter` component | ✅ Done |
+| 2 | Highlight terms in Project Details table | ✅ Done |
+| 3 | Reuse logic from Quick Check page | ✅ Done |
 
 ---
 
@@ -130,15 +149,18 @@
 | ~~Prompt duplication~~ | React StrictMode race condition | ✅ Fixed |
 | ~~Glossary import~~ | Missing `createGlossaryTerms` function | ✅ Fixed |
 | ~~Language order~~ | Swapped to EN → MY → ZH | ✅ Fixed |
+| ~~BM prompt ignored~~ | Added language-specific style blocks | ✅ Fixed |
+| ~~Custom prompt not merging~~ | Per-row promptId now used | ✅ Fixed |
 
 ---
 
 ## Quick Reference
 
 **Recommended Next Steps:**
-1. Complete Phase 1.1 (test prompt assignment flow)
-2. Start Phase 2.1 (Firebase Auth) when ready for production
-3. Clean up Firestore duplicate data
+1. ~~Complete Phase 1.1 (test prompt assignment flow)~~ ✅ Done
+2. Add project rename from Home page (user requested)
+3. Start Phase 2.1 (Firebase Auth) when ready for production
+4. Clean up Firestore duplicate data
 
 **Files frequently modified:**
 - `src/pages/project-details.jsx` - Main project view

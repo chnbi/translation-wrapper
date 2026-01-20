@@ -33,6 +33,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useProjects } from "@/context/ProjectContext"
@@ -44,69 +45,100 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog"
 
-// WordFlow Logo Component - matching Figma design
+// WordFlow Logo Component - ChatGPT-style behavior
+// Logo navigates home, shows sidebar icon + "Open sidebar" tooltip when collapsed and hovered
 function WordFlowLogo() {
-  const { state } = useSidebar()
+  const { state, toggleSidebar } = useSidebar()
   const isCollapsed = state === "collapsed"
+  const [isHovered, setIsHovered] = React.useState(false)
+
+  // Only show tooltip when collapsed and hovered
+  const showTooltip = isCollapsed && isHovered
+  // Show sidebar icon instead of logo when collapsed and hovered
+  const showSidebarIcon = isCollapsed && isHovered
+
+  const handleClick = (e) => {
+    if (isCollapsed) {
+      // When collapsed, clicking logo opens sidebar (like ChatGPT)
+      e.preventDefault()
+      toggleSidebar()
+    } else {
+      // When expanded, logo navigates to home
+      window.location.hash = '#'
+    }
+  }
+
+  // Sidebar Icon (PanelLeft style) - matches feature icon size
+  const SidebarIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sidebar-foreground group-hover:text-primary transition-colors">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+    </svg>
+  )
+
+  // WordFlow Flower Logo
+  const FlowerLogo = () => (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M16 4C16 4 20 8 20 12C20 16 16 20 16 20C16 20 12 16 12 12C12 8 16 4 16 4Z" fill="url(#petal1)" />
+      <path d="M28 16C28 16 24 20 20 20C16 20 12 16 12 16C12 16 16 12 20 12C24 12 28 16 28 16Z" fill="url(#petal2)" />
+      <path d="M16 28C16 28 12 24 12 20C12 16 16 12 16 12C16 12 20 16 20 20C20 24 16 28 16 28Z" fill="url(#petal3)" />
+      <path d="M4 16C4 16 8 12 12 12C16 12 20 16 20 16C20 16 16 20 12 20C8 20 4 16 4 16Z" fill="url(#petal4)" />
+      <circle cx="16" cy="16" r="3" fill="#FF6B9D" />
+      <defs>
+        <linearGradient id="petal1" x1="16" y1="4" x2="16" y2="20" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
+        </linearGradient>
+        <linearGradient id="petal2" x1="28" y1="16" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
+        </linearGradient>
+        <linearGradient id="petal3" x1="16" y1="28" x2="16" y2="12" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
+        </linearGradient>
+        <linearGradient id="petal4" x1="4" y1="16" x2="20" y2="16" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
 
   return (
-    <a href="#" className="flex items-center gap-2.5 px-1 hover:opacity-80 transition-opacity cursor-pointer">
-      {/* Logo Icon - Pink gradient flower/sparkle */}
-      <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-        <svg
-          width="32"
-          height="32"
-          viewBox="0 0 32 32"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {/* Main flower petals */}
-          <path
-            d="M16 4C16 4 20 8 20 12C20 16 16 20 16 20C16 20 12 16 12 12C12 8 16 4 16 4Z"
-            fill="url(#petal1)"
-          />
-          <path
-            d="M28 16C28 16 24 20 20 20C16 20 12 16 12 16C12 16 16 12 20 12C24 12 28 16 28 16Z"
-            fill="url(#petal2)"
-          />
-          <path
-            d="M16 28C16 28 12 24 12 20C12 16 16 12 16 12C16 12 20 16 20 20C20 24 16 28 16 28Z"
-            fill="url(#petal3)"
-          />
-          <path
-            d="M4 16C4 16 8 12 12 12C16 12 20 16 20 16C20 16 16 20 12 20C8 20 4 16 4 16Z"
-            fill="url(#petal4)"
-          />
-          {/* Center circle */}
-          <circle cx="16" cy="16" r="3" fill="#FF6B9D" />
-          <defs>
-            <linearGradient id="petal1" x1="16" y1="4" x2="16" y2="20" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF8FB1" />
-              <stop offset="1" stopColor="#FF6B9D" />
-            </linearGradient>
-            <linearGradient id="petal2" x1="28" y1="16" x2="12" y2="16" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF8FB1" />
-              <stop offset="1" stopColor="#FF6B9D" />
-            </linearGradient>
-            <linearGradient id="petal3" x1="16" y1="28" x2="16" y2="12" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF8FB1" />
-              <stop offset="1" stopColor="#FF6B9D" />
-            </linearGradient>
-            <linearGradient id="petal4" x1="4" y1="16" x2="20" y2="16" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FF8FB1" />
-              <stop offset="1" stopColor="#FF6B9D" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
-      {/* Brand Name - hidden when collapsed */}
-      {!isCollapsed && (
-        <span className="text-lg font-semibold text-sidebar-foreground tracking-tight">
-          WordFlow
-        </span>
+    <div
+      className="relative group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <button
+        onClick={handleClick}
+        className="flex items-center gap-2.5 px-1 transition-all cursor-pointer bg-transparent border-none"
+        title={isCollapsed ? "Open sidebar" : "Home"}
+      >
+        {/* Logo Icon - swaps to sidebar icon when collapsed + hovered */}
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center transition-all">
+          {showSidebarIcon ? <SidebarIcon /> : <FlowerLogo />}
+        </div>
+        {/* Brand Name - hidden when collapsed */}
+        {!isCollapsed && (
+          <span className="text-lg font-semibold text-sidebar-foreground tracking-tight">
+            WordFlow
+          </span>
+        )}
+      </button>
+
+      {/* Tooltip: "Open sidebar" when collapsed and hovered */}
+      {showTooltip && (
+        <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-foreground text-background text-xs rounded shadow-lg whitespace-nowrap z-50">
+          Open sidebar
+        </div>
       )}
-    </a>
+    </div>
   )
 }
 
@@ -367,44 +399,18 @@ function ProjectWithPages({
       </Collapsible>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setDeleteConfirm(null)}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold mb-2">
-              Delete {deleteConfirm.type === 'project' ? 'Project' : 'Page'}?
-            </h3>
-            <p className="text-gray-600 text-sm mb-4">
-              {deleteConfirm.type === 'project'
-                ? `This will permanently delete "${project.name}" and all its pages.`
-                : `This will permanently delete this page and all its content.`
-              }
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                style={{ backgroundColor: '#FF0084' }}
-                className="px-4 py-2 text-sm text-white hover:opacity-90 rounded"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={confirmDelete}
+        title={deleteConfirm?.type === 'project' ? 'Delete Project?' : 'Delete Page?'}
+        message={deleteConfirm?.type === 'project'
+          ? `Are you sure you want to delete "${project?.name}"? This action cannot be undone.`
+          : 'Are you sure you want to delete this page? This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+      />
     </>
   )
 }
@@ -498,6 +504,8 @@ export function AppSidebar({ ...props }) {
   }
 
   // Compute badge counts
+
+
   const pendingApprovals = React.useMemo(() => {
     let count = 0
     // Count project rows pending review
@@ -518,8 +526,7 @@ export function AppSidebar({ ...props }) {
     return count
   }, [projects, getProjectPages, getPageRows, getProjectRows, glossaryTerms])
 
-  const glossaryPendingCount = glossaryTerms.filter(t => t.status === 'review').length
-  const glossaryApprovedCount = glossaryTerms.filter(t => t.status === 'approved').length
+  const glossaryNewApprovals = getNewApprovalCount('glossary', 'main', glossaryTerms)
   const projectsInProgress = projects.filter(p => p.status === 'in-progress').length
 
   // Dynamic nav items with badges
@@ -528,7 +535,7 @@ export function AppSidebar({ ...props }) {
     { title: "Approvals", url: "#approvals", icon: Edit3, badge: pendingApprovals > 0 ? pendingApprovals : undefined },
     { title: "Image Translation", url: "#image-translate", icon: Languages },
     { title: "Quick Check", url: "#quick-check", icon: Sparkles },
-    { title: "Glossary", url: "#glossary", icon: BookOpen, badge: glossaryApprovedCount > 0 ? glossaryApprovedCount : undefined },
+    { title: "Glossary", url: "#glossary", icon: BookOpen, badge: glossaryNewApprovals > 0 ? glossaryNewApprovals : undefined },
     { title: "Prompt Library", url: "#prompt", icon: Library }, // Approved count for Glossary
   ]
 
@@ -541,8 +548,12 @@ export function AppSidebar({ ...props }) {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar" {...props}>
       <SidebarHeader className="bg-sidebar text-sidebar-foreground pt-5 pb-4 px-4 transition-all">
-        {/* WordFlow Logo */}
-        <WordFlowLogo />
+        {/* WordFlow Logo and Toggle */}
+        <div className="flex items-center justify-between">
+          <WordFlowLogo />
+          {/* Toggle button - hidden when collapsed, icon size matches feature icons */}
+          <SidebarTrigger className="h-8 w-8 text-sidebar-foreground/60 hover:text-primary hover:bg-sidebar-accent rounded-md transition-colors group-data-[collapsible=icon]:hidden [&>svg]:h-[20px] [&>svg]:w-[20px]" />
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="bg-sidebar text-sidebar-foreground/80 px-2 pt-2 gap-4">

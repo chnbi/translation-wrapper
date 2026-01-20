@@ -199,21 +199,31 @@ function buildTranslationPrompt(sourceTexts, template, targetLanguages, glossary
 
     // Process template with variable substitution
     const styleInstruction = processTemplate(template, targetLanguages);
+    console.log('📝 [Gemini API] Style Instruction:', styleInstruction); // DEBUG LOG
 
     // Build glossary section (with context-aware filtering)
     const glossarySection = buildGlossaryPrompt(glossaryTerms, targetLanguages, sourceTexts);
 
+    // Build language-specific style instructions to prevent selective application
+    const languageSpecificStyles = targetLanguages.map(langCode => {
+        const langName = LANGUAGE_NAMES[langCode] || langCode;
+        return `### For ${langName} translations specifically:
+${styleInstruction}`;
+    }).join('\n\n');
+
     const prompt = `You are a professional translator for a Malaysian telecommunications company. Translate the following texts from ${sourceLangStr} to ${targetLangStr}.
 
-## Style Guidelines
-${styleInstruction}
-${glossarySection}
-## Translation Requirements
+## Core Requirements
 - Use Malaysian Bahasa (not Indonesian) for Malay translations
 - Use Simplified Chinese with Malaysian expressions for Chinese translations
 - Maintain professional but approachable tone
 - Preserve any placeholders like {name} or {{variable}} exactly as they appear
 - Maintain the same formatting (line breaks, punctuation style)
+${glossarySection}
+## MANDATORY Style Guidelines (APPLY TO ALL LANGUAGES)
+The following style instructions MUST be applied to EVERY target language equally:
+
+${languageSpecificStyles}
 
 ## Input
 I will provide you with a JSON array of objects. Each object has:
@@ -237,10 +247,12 @@ Example output format:
 ]
 \`\`\`
 
-IMPORTANT: 
+CRITICAL REMINDERS:
 - Return ONLY the JSON array, no other text
 - Apply glossary terms exactly as specified
-- If a glossary term appears in the source, use the exact translation from the glossary`;
+- If a glossary term appears in the source, use the exact translation from the glossary
+- YOU MUST apply ALL style instructions to EVERY language translation. Do NOT apply style to only one language and ignore others.
+- Double-check: Did you apply the style rules to BOTH ${targetLangStr}? If not, regenerate.`;
 
     return prompt;
 }

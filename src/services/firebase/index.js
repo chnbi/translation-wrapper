@@ -46,3 +46,14 @@ export {
     createGlossaryCategory,
     deleteGlossaryCategory
 } from './glossary'
+
+// Audit Trail operations
+export {
+    logAction,
+    getEntityHistory,
+    getProjectActivity,
+    getAllAuditLogs,
+    formatAction,
+    formatRelativeTime,
+    AUDIT_ACTIONS
+} from './audit'

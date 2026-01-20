@@ -154,8 +154,10 @@ export default function Approvals() {
                     affectedProjectIds.add(row.projectId)
                 }
 
-                // Recompute stats for affected projects
-                affectedProjectIds.forEach(pid => recomputeProjectStats(pid))
+                // Recompute stats for affected projects (delayed to allow state to settle)
+                setTimeout(() => {
+                    affectedProjectIds.forEach(pid => recomputeProjectStats(pid))
+                }, 500)
 
                 // Process rejected project rows - set status to 'changes'
                 for (const row of filteredRows.filter(r => rejectedIds.includes(r.id))) {
@@ -459,7 +461,55 @@ export default function Approvals() {
                         <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: 'hsl(220, 9%, 46%)' }} />
                     </div>
 
+                    {/* Bulk Approve - Only when items are selected */}
+                    {selectedIds.length > 0 && (
+                        <button
+                            onClick={() => {
+                                selectedIds.forEach(id => handleApprove(id))
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                height: '32px',
+                                padding: '0 14px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                color: '#10b981',
+                                backgroundColor: 'transparent',
+                                border: '1px solid #10b981',
+                                borderRadius: '9999px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Check style={{ width: '14px', height: '14px' }} /> Approve {selectedIds.length}
+                        </button>
+                    )}
 
+                    {/* Bulk Reject - Only when items are selected */}
+                    {selectedIds.length > 0 && (
+                        <button
+                            onClick={() => {
+                                selectedIds.forEach(id => handleReject(id))
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                height: '32px',
+                                padding: '0 14px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                color: '#ef4444',
+                                backgroundColor: 'transparent',
+                                border: '1px solid #ef4444',
+                                borderRadius: '9999px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <X style={{ width: '14px', height: '14px' }} /> Reject {selectedIds.length}
+                        </button>
+                    )}
 
                     <PrimaryButton
                         style={{ height: '32px', fontSize: '12px', padding: '0 16px' }}
@@ -469,6 +519,7 @@ export default function Approvals() {
                         <span style={{ fontSize: '14px' }}>✦</span> Save {(approvedCount + rejectedCount) > 0 ? `${approvedCount + rejectedCount} items` : 'items'}
                     </PrimaryButton>
                 </div>
+
             </div>
 
             {/* Reusable Data Table or Empty State */}

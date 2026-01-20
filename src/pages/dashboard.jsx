@@ -22,10 +22,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/dialogs"
 
 export default function Dashboard() {
     const { projects, deleteProject, addProject } = useProjects()
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
+    const [deleteConfirm, setDeleteConfirm] = useState(null)
     const fileInputRef = useRef(null)
 
     const handleCreateProject = async (projectData) => {
@@ -228,7 +230,7 @@ export default function Dashboard() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); deleteProject(project.id) }} className="text-red-600 focus:text-red-600">
+                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ project }) }} className="text-red-600 focus:text-red-600">
                                                     Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -251,6 +253,22 @@ export default function Dashboard() {
                 isOpen={isNewProjectOpen}
                 onClose={() => setIsNewProjectOpen(false)}
                 onSubmit={handleCreateProject}
+            />
+
+            <ConfirmDialog
+                open={!!deleteConfirm}
+                onClose={() => setDeleteConfirm(null)}
+                onConfirm={async () => {
+                    if (deleteConfirm) {
+                        await deleteProject(deleteConfirm.project.id)
+                        setDeleteConfirm(null)
+                        toast.success("Project deleted")
+                    }
+                }}
+                title="Delete Project?"
+                message={`Are you sure you want to delete "${deleteConfirm?.project?.name}"? This action cannot be undone.`}
+                confirmLabel="Delete"
+                variant="destructive"
             />
         </div>
     )

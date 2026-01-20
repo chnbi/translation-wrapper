@@ -24,6 +24,7 @@ import {
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { getStatusConfig } from "@/lib/constants"
 import { ConfirmDialog } from "@/components/dialogs"
+import { GlossaryHighlighter } from "@/components/ui/GlossaryHighlighter"
 
 
 export default function ProjectView({ projectId }) {
@@ -61,6 +62,18 @@ export default function ProjectView({ projectId }) {
     const [waitTimeout, setWaitTimeout] = useState(false) // Timeout for waiting for project
     const [deleteConfirm, setDeleteConfirm] = useState(null) // { type: 'bulk' | 'single', data: any }
     const [duplicateConfirm, setDuplicateConfirm] = useState(null) // { row: object, duplicate: object }
+    const [editingRowId, setEditingRowId] = useState(null) // Row being edited inline
+
+    // Prompt Selection State
+    const [selectedPromptId, setSelectedPromptId] = useState(null)
+
+    // Set default prompt when templates load
+    useEffect(() => {
+        if (!selectedPromptId && templates.length > 0) {
+            const defaultT = templates.find(t => t.isDefault)
+            if (defaultT) setSelectedPromptId(defaultT.id)
+        }
+    }, [templates, selectedPromptId])
 
     const fileInputRef = useRef(null)
 
@@ -127,8 +140,16 @@ export default function ProjectView({ projectId }) {
 
     // Helper variables for Action Bar Logic
     const hasRows = rows.length > 0
+
+    // Check if ALL rows have translations filled (regardless of status)
+    const allFilled = hasRows && rows.every(r => r.my?.trim() && r.zh?.trim())
+
+    // Check if SELECTED rows have translations filled
+    const selectionFilled = hasSelection && rows
+        .filter(r => selectedRowIds.has(r.id))
+        .every(r => r.my?.trim() && r.zh?.trim())
+
     // 'review' or 'approved' counts as translated for button logic
-    // OR if content is present (user manually filled it)
     const allTranslated = hasRows && rows.every(r =>
         (r.status === 'review' || r.status === 'approved') ||
         (r.my?.trim() && r.zh?.trim())
@@ -136,8 +157,7 @@ export default function ProjectView({ projectId }) {
     const allApproved = hasRows && rows.every(r => r.status === 'approved')
 
     // Show loading state while Firestore data is being fetched
-    // Also show loading if project ID is present but project not found (newly created - race condition)
-    const projectIdValid = id && id.length > 10 // Firestore IDs are usually 20+ chars
+    const projectIdValid = id && id.length > 10
     const isWaitingForProject = !isLoading && !project && projectIdValid && !waitTimeout
 
     if (isLoading || isWaitingForProject) {
@@ -149,7 +169,6 @@ export default function ProjectView({ projectId }) {
         )
     }
 
-    // Only show "not found" error after loading completes
     if (!project) {
         return (
             <div className="flex flex-col items-center justify-center py-20">
@@ -164,8 +183,6 @@ export default function ProjectView({ projectId }) {
             </div>
         )
     }
-
-
 
     // Handlers
     const handleSelectAll = () => {
@@ -214,7 +231,7 @@ export default function ProjectView({ projectId }) {
                     en: entry.english || '',
                     my: entry.malay || '',
                     zh: entry.chinese || '',
-                    status: 'pending',
+                    status: 'draft',
                 })).filter(row => row.en)
 
                 if (newRows.length > 0) {
@@ -229,7 +246,7 @@ export default function ProjectView({ projectId }) {
             console.error('Error importing file:', error)
         } finally {
             setIsImporting(false)
-            if (fileInputRef.current) fileInputRef.current.value = ''
+            fileInputRef.current.value = ''
         }
     }
 
@@ -237,24 +254,19 @@ export default function ProjectView({ projectId }) {
     const handleStartAddRow = () => {
         setIsAddingRow(true)
         setNewRowData({ en: '', my: '', zh: '' })
-        // Focus the input after render
         setTimeout(() => newRowInputRef.current?.focus(), 50)
     }
 
-    // Check if a new row is a duplicate of existing rows
     const findDuplicateRow = (newRow, existingRows) => {
         return existingRows.find(existing => {
-            // Check English (case-insensitive)
             if (newRow.en && existing.en &&
                 newRow.en.toLowerCase().trim() === existing.en.toLowerCase().trim()) {
                 return true
             }
-            // Check Malay (case-insensitive)
             if (newRow.my && existing.my &&
                 newRow.my.toLowerCase().trim() === existing.my.toLowerCase().trim()) {
                 return true
             }
-            // Check Chinese (exact match)
             if (newRow.zh && existing.zh &&
                 newRow.zh.trim() === existing.zh.trim()) {
                 return true
@@ -273,19 +285,16 @@ export default function ProjectView({ projectId }) {
             en: newRowData.en.trim(),
             my: newRowData.my.trim(),
             zh: newRowData.zh.trim(),
-            status: 'draft',  // New rows start as draft
-            promptId: 'default',  // Default prompt assignment
+            status: 'draft',
+            promptId: 'default',
         }
 
-        // Check for duplicates
         const duplicate = findDuplicateRow(newRow, rows)
         if (duplicate) {
-            // Show styled confirmation dialog
             setDuplicateConfirm({ row: newRow, duplicate })
-            return // Wait for user response
+            return
         }
 
-        // No duplicate - proceed with adding
         await addRowToProject(newRow)
     }
 
@@ -294,7 +303,6 @@ export default function ProjectView({ projectId }) {
         setNewRowData({ en: '', my: '', zh: '' })
     }
 
-    // Handle Enter key to save, Escape to cancel
     const handleNewRowKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
@@ -306,16 +314,19 @@ export default function ProjectView({ projectId }) {
 
     const handleBulkDelete = async () => {
         if (selectedCount === 0) return
-        // Show styled confirmation dialog
         setDeleteConfirm({ type: 'bulk', count: selectedCount })
     }
 
-    // Actually perform bulk delete after confirmation
-    const performBulkDelete = async () => {
+    const performDelete = async () => {
         try {
-            await deleteRows(id, selectedRowIds)
-            deselectAllRows(id)
-            toast.success(`Deleted ${deleteConfirm.count} rows`)
+            const idsToDelete = deleteConfirm.type === 'single' ? [deleteConfirm.id] : Array.from(selectedRowIds)
+            await deleteRows(id, idsToDelete)
+
+            if (deleteConfirm.type === 'bulk') {
+                deselectAllRows(id)
+            }
+
+            toast.success(`Deleted ${idsToDelete.length} rows`)
         } catch (error) {
             console.error('Delete failed:', error)
             toast.error('Failed to delete rows')
@@ -342,22 +353,36 @@ export default function ProjectView({ projectId }) {
     }
 
     // Send selected rows for review
+    // Send rows for review
     const handleSendForReview = async () => {
-        if (selectedCount === 0) {
-            toast.error('No rows selected')
+        let rowsToSend = []
+
+        if (selectedCount > 0) {
+            rowsToSend = rows.filter(row => selectedRowIds.has(row.id))
+        } else {
+            rowsToSend = rows.filter(r => r.status !== 'review' && r.status !== 'approved')
+            // If everything is already completed, maybe user wants to re-approve rejected ones? 
+            // Logic: send anything NOT approved.
+            if (rowsToSend.length === 0) {
+                rowsToSend = rows.filter(r => r.status !== 'approved')
+            }
+        }
+
+        if (rowsToSend.length === 0) {
+            toast.error('No eligible rows to send for review')
             return
         }
 
-        const selectedRows = rows.filter(row => selectedRowIds.has(row.id))
         let successCount = 0
-
-        for (const row of selectedRows) {
-            await updateProjectRow(id, row.id, { status: 'review' })
-            successCount++
+        for (const row of rowsToSend) {
+            if (row.status !== 'review') {
+                await updateProjectRow(id, row.id, { status: 'review' })
+                successCount++
+            }
         }
 
         deselectAllRows(id)
-        toast.success(`Sent ${successCount} rows for review`)
+        toast.success(`Sent ${successCount || rowsToSend.length} rows for review`)
     }
 
     // Translation handler
@@ -385,46 +410,114 @@ export default function ProjectView({ projectId }) {
                 toast.info(`Translating ${rowsToTranslate.length} empty rows...`)
             }
 
-            // Get the default template - EXCLUDE DRAFTS (only published or review)
-            const publishedTemplates = templates.filter(t => t.status !== 'draft')
-            const defaultTemplate = publishedTemplates.find(t => t.isDefault) ||
+            // Get templates - published templates + always include default (even if draft)
+            const defaultTemplate = templates.find(t => t.isDefault)
+            const publishedTemplates = templates.filter(t => t.status !== 'draft' || t.isDefault)
+
+            // Determine which prompt to use:
+            // 1. If selected rows have a promptId set, use that (per-row selection)
+            // 2. Otherwise use Action Bar dropdown selection
+            // 3. Fallback to default template
+            let effectivePromptId = selectedPromptId
+
+            // Check if selected rows have a specific promptId assigned
+            if (hasSelection && rowsToTranslate.length > 0) {
+                const rowPromptIds = rowsToTranslate.map(r => r.promptId).filter(Boolean)
+                if (rowPromptIds.length > 0) {
+                    // Use the first row's promptId (all selected rows should ideally have the same)
+                    const firstRowPromptId = rowPromptIds[0]
+                    // Check if all selected rows have the same promptId
+                    const allSame = rowPromptIds.every(id => id === firstRowPromptId)
+                    if (allSame) {
+                        effectivePromptId = firstRowPromptId
+                        console.log('🔍 [DEBUG] Using per-row promptId:', effectivePromptId)
+                    } else {
+                        console.log('⚠️ [DEBUG] Selected rows have different promptIds, using first:', firstRowPromptId)
+                        effectivePromptId = firstRowPromptId
+                    }
+                }
+            }
+
+            console.log('🔍 [DEBUG] Effective promptId:', effectivePromptId)
+            console.log('🔍 [DEBUG] All templates:', templates.map(t => ({ id: t.id, name: t.name, isDefault: t.isDefault, status: t.status })))
+
+            // Always get the base default template (MANDATORY - never filtered out)
+            const baseDefaultTemplate = defaultTemplate ||
                 publishedTemplates[0] ||
             {
                 name: 'Default',
                 prompt: 'Translate accurately while maintaining the original meaning and tone.'
             }
 
-            console.log(`📝 [Translate] Using template: ${defaultTemplate.name}`)
-
-            // Call translation API
-            const results = await translateBatch(
-                rowsToTranslate.map(row => ({ id: row.id, en: row.en })),
-                defaultTemplate,
-                {
-                    targetLanguages: ['my', 'zh'],
-                    glossaryTerms: glossaryTerms.map(t => ({
-                        english: t.english,
-                        malay: t.malay,
-                        chinese: t.chinese
-                    }))
+            // Group rows by their promptId for separate translation batches
+            const rowsByPromptId = {}
+            for (const row of rowsToTranslate) {
+                const promptKey = row.promptId || 'default'
+                if (!rowsByPromptId[promptKey]) {
+                    rowsByPromptId[promptKey] = []
                 }
-            )
+                rowsByPromptId[promptKey].push(row)
+            }
 
-            // Update rows with translations
-            let successCount = 0
-            for (const result of results) {
-                if (result.status !== 'error') {
-                    await updateProjectRow(id, result.id, {
-                        my: result.my,
-                        zh: result.zh,
-                        translatedAt: new Date().toISOString()
-                    })
-                    successCount++
+            console.log('🔍 [DEBUG] Row groups by promptId:', Object.keys(rowsByPromptId).map(k => `${k}: ${rowsByPromptId[k].length} rows`))
+
+            // Translate each group with its respective prompt
+            let totalSuccessCount = 0
+
+            for (const [promptKey, groupRows] of Object.entries(rowsByPromptId)) {
+                const effectivePromptId = promptKey === 'default' ? null : promptKey
+
+                // Get user-selected template for this group
+                const selectedTemplate = effectivePromptId ? publishedTemplates.find(t => t.id === effectivePromptId) : null
+                console.log(`🔍 [DEBUG] Group "${promptKey}": ${groupRows.length} rows, template:`, selectedTemplate?.name || 'Default only')
+
+                // Merge prompts: Default base (ALWAYS) + Custom additions (if selected and different)
+                let mergedPrompt = baseDefaultTemplate.prompt || ''
+                let templateName = baseDefaultTemplate.name
+
+                if (selectedTemplate && selectedTemplate.id !== baseDefaultTemplate.id) {
+                    // Custom template - append its instructions to default
+                    mergedPrompt = `${baseDefaultTemplate.prompt}\n\n## Additional Custom Instructions (${selectedTemplate.name})\n${selectedTemplate.prompt}`
+                    templateName = `${baseDefaultTemplate.name} + ${selectedTemplate.name}`
+                }
+
+                const templateToUse = {
+                    ...baseDefaultTemplate,
+                    name: templateName,
+                    prompt: mergedPrompt
+                }
+
+                console.log(`📝 [Translate] Group "${promptKey}" using template: ${templateToUse.name}`)
+
+                // Call translation API for this group
+                const results = await translateBatch(
+                    groupRows.map(row => ({ id: row.id, en: row.en })),
+                    templateToUse,
+                    {
+                        targetLanguages: ['my', 'zh'],
+                        glossaryTerms: glossaryTerms.map(t => ({
+                            english: t.english,
+                            malay: t.malay,
+                            chinese: t.chinese
+                        }))
+                    }
+                )
+
+                // Update rows with translations
+                for (const result of results) {
+                    if (result.status !== 'error') {
+                        await updateProjectRow(id, result.id, {
+                            my: result.my,
+                            zh: result.zh,
+                            translatedAt: new Date().toISOString()
+                        })
+                        totalSuccessCount++
+                    }
                 }
             }
 
-            toast.success(`Successfully translated ${successCount} rows!`)
-            console.log(`✅ [Translate] Completed: ${successCount}/${rowsToTranslate.length} rows`)
+            toast.success(`Successfully translated ${totalSuccessCount} rows!`)
+            console.log(`✅ [Translate] Completed: ${totalSuccessCount}/${rowsToTranslate.length} rows`)
 
         } catch (error) {
             console.error('❌ [Translate] Error:', error)
@@ -441,11 +534,52 @@ export default function ProjectView({ projectId }) {
         }
     }
 
+
+
     // Column Definitions - widths aligned with Glossary, scrollable for dynamic languages
     const columns = [
-        { header: "English", accessor: "en", width: "220px", minWidth: "180px", color: 'hsl(222, 47%, 11%)' },
-        { header: "Bahasa Malaysia", accessor: "my", width: "200px", minWidth: "160px", color: 'hsl(220, 9%, 46%)', render: row => row.my || '—' },
-        { header: "Chinese", accessor: "zh", width: "180px", minWidth: "140px", color: 'hsl(220, 9%, 46%)', render: row => row.zh || '—' },
+        {
+            header: "English",
+            accessor: "en",
+            width: "220px",
+            minWidth: "180px",
+            color: 'hsl(222, 47%, 11%)',
+            render: row => (
+                <GlossaryHighlighter
+                    text={row.en}
+                    language="en"
+                    glossaryTerms={glossaryTerms}
+                />
+            )
+        },
+        {
+            header: "Bahasa Malaysia",
+            accessor: "my",
+            width: "200px",
+            minWidth: "160px",
+            color: 'hsl(220, 9%, 46%)',
+            render: row => (
+                <GlossaryHighlighter
+                    text={row.my || '—'}
+                    language="my"
+                    glossaryTerms={glossaryTerms}
+                />
+            )
+        },
+        {
+            header: "Chinese",
+            accessor: "zh",
+            width: "180px",
+            minWidth: "140px",
+            color: 'hsl(220, 9%, 46%)',
+            render: row => (
+                <GlossaryHighlighter
+                    text={row.zh || '—'}
+                    language="zh"
+                    glossaryTerms={glossaryTerms}
+                />
+            )
+        },
         {
             header: "Status",
             accessor: "status",
@@ -507,7 +641,13 @@ export default function ProjectView({ projectId }) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" style={{ minWidth: '120px' }}>
                         <DropdownMenuItem
-                            onClick={() => console.log('Edit row', row.id)}
+                            onClick={() => {
+                                // Select this row for editing and scroll to it
+                                if (!selectedRowIds.has(row.id)) {
+                                    toggleRowSelection(project.id, row.id)
+                                }
+                                toast.info('Row selected. Edit cells directly in the table.')
+                            }}
                             style={{ cursor: 'pointer' }}
                         >
                             <Pencil style={{ width: '14px', height: '14px', marginRight: '8px' }} />
@@ -515,9 +655,7 @@ export default function ProjectView({ projectId }) {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={() => {
-                                if (confirm('Delete this row?')) {
-                                    deleteRows(id, [row.id])
-                                }
+                                setDeleteConfirm({ type: 'single', id: row.id, count: 1 })
                             }}
                             style={{ cursor: 'pointer', color: 'hsl(0, 84%, 60%)' }}
                         >
@@ -585,16 +723,25 @@ export default function ProjectView({ projectId }) {
                     </div>
 
                     {/* Filter - Available when rows exist and NO selection */}
-                    {hasRows && !hasSelection && !allApproved && (
-                        <StatusFilterDropdown
-                            selectedStatuses={statusFilter}
-                            onStatusChange={setStatusFilter}
-                        />
+                    {hasRows && !hasSelection && (
+                        <>
+                            <PromptCategoryDropdown
+                                currentPromptId={selectedPromptId}
+                                templates={templates.filter(t => t.status !== 'draft')}
+                                onSelect={setSelectedPromptId}
+                            />
+                            <StatusFilterDropdown
+                                currentFilter={statusFilter}
+                                onSelect={setStatusFilter}
+                            />
+                        </>
                     )}
+
 
                     {/* Import - Available when NO selection and NOT fully approved (unless we allow adding to approved?) Requirements say 'Import' on Approved too. */}
                     {/* Requirements: Approved -> Search, Filter, Import, Export. So Import is always available except Selection? */}
                     {/* Matrix says: Empty(Import), Pending(Import), Translated(Import), Approved(Import). Selection(No Import). */}
+                    {/* Import */}
                     {!hasSelection && (
                         <PillButton
                             variant="outline"
@@ -605,21 +752,54 @@ export default function ProjectView({ projectId }) {
                         </PillButton>
                     )}
 
-                    {/* Delete - Only when Selection is active */}
+                    {/* Selection Actions */}
                     {hasSelection && (
+                        <>
+                            <PillButton
+                                variant="outline"
+                                onClick={handleBulkDelete}
+                            >
+                                <Trash2 style={{ width: '16px', height: '16px' }} /> Delete {selectedCount}
+                            </PillButton>
+
+                            {/* Translate - Always available when selected (not all approved) */}
+                            {!allApproved && (
+                                <PrimaryButton
+                                    style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium }}
+                                    onClick={handleTranslateAll}
+                                    disabled={isTranslating}
+                                >
+                                    <span style={{ fontSize: '14px' }}>✦</span> Translate {selectedCount}
+                                </PrimaryButton>
+                            )}
+
+                            {/* Send to Review - Only if selected rows are filled (RIGHTMOST) */}
+                            {selectionFilled && (
+                                <PrimaryButton
+                                    style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
+                                    onClick={handleSendForReview}
+                                >
+                                    <Send style={{ width: '14px', height: '14px' }} /> Send {selectedCount} to Review
+                                </PrimaryButton>
+                            )}
+                        </>
+                    )}
+
+                    {/* Export - Available when NO selection and ALL FILLED (but NOT allApproved, avoid duplicate) */}
+                    {hasRows && !hasSelection && allFilled && !allApproved && (
                         <PillButton
                             variant="outline"
-                            onClick={handleBulkDelete}
+                            style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
+                            onClick={handleExport}
                         >
-                            <Trash2 style={{ width: '16px', height: '16px' }} /> Delete {selectedCount}
+                            <Download style={{ width: '14px', height: '14px' }} /> Export
                         </PillButton>
                     )}
 
-                    {/* Translate Functions */}
-                    {/* Case 2: Pending (No Selection, Not all translated) -> Translate Empty */}
-                    {hasRows && !hasSelection && !allTranslated && (
+                    {/* Check if we need Translate button (No Selection, Not all translated) */}
+                    {hasRows && !hasSelection && !allFilled && (
                         <PrimaryButton
-                            style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium }}
+                            style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium, marginLeft: '8px' }}
                             onClick={handleTranslateAll}
                             disabled={isTranslating}
                         >
@@ -631,39 +811,20 @@ export default function ProjectView({ projectId }) {
                         </PrimaryButton>
                     )}
 
-                    {/* Case 3: Translated (No Selection, All translated, Not all approved) -> Export + Send for Review */}
+                    {/* Send for Review (No Selection) - if translated but not approved */}
                     {hasRows && !hasSelection && allTranslated && !allApproved && (
-                        <>
-                            <PillButton
-                                variant="outline" // Greyish export
-                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginRight: '8px' }}
-                                onClick={handleExport}
-                            >
-                                <Download style={{ width: '14px', height: '14px' }} /> Export
-                            </PillButton>
-                            <PrimaryButton
-                                style={{ height: '32px', fontSize: '12px', padding: '0 16px' }} // Standard Pink
-                                onClick={handleSendForReview}
-                                disabled={isTranslating}
-                            >
-                                <Send style={{ width: '14px', height: '14px' }} /> Send for Review
-                            </PrimaryButton>
-                        </>
-                    )}
-
-                    {/* Case 4 & 5: Selection (Pending or Review) -> Translate Only (Blue) */}
-                    {hasSelection && !allApproved && (
                         <PrimaryButton
-                            style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium }}
-                            onClick={handleTranslateAll}
+                            style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
+                            onClick={handleSendForReview}
                             disabled={isTranslating}
                         >
-                            <span style={{ fontSize: '14px' }}>✦</span> Translate {selectedCount}
+                            <Send style={{ width: '14px', height: '14px' }} /> Send for Review
                         </PrimaryButton>
                     )}
 
                     {/* Case 6: Approved (All Approved) -> Export */}
                     {allApproved && (
+
                         <PillButton
                             variant="outline"
                             style={{ height: '32px', fontSize: '12px', padding: '0 16px' }}
@@ -829,12 +990,16 @@ export default function ProjectView({ projectId }) {
             </DataTable>
 
             {/* Delete Confirmation Dialog */}
+            {/* Delete Confirmation Dialog */}
             <ConfirmDialog
                 open={!!deleteConfirm}
                 onClose={() => setDeleteConfirm(null)}
-                onConfirm={performBulkDelete}
+                onConfirm={performDelete}
                 title="Delete Rows?"
-                message={`Are you sure you want to delete ${deleteConfirm?.count || 0} selected rows? This action cannot be undone.`}
+                message={deleteConfirm?.type === 'single'
+                    ? "Are you sure you want to delete this row? This action cannot be undone."
+                    : `Are you sure you want to delete ${deleteConfirm?.count || 0} selected rows? This action cannot be undone.`
+                }
                 confirmLabel="Delete"
                 variant="destructive"
             />

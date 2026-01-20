@@ -49,8 +49,8 @@ class ErrorBoundary extends Component {
             return (
                 <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 dark:bg-zinc-950 p-6">
                     <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-pink-100 dark:border-pink-900/30 p-8 max-w-md w-full text-center">
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: '#FFB9DD' }}>
-                            <AlertCircle className="w-8 h-8" style={{ color: '#FF0084' }} />
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 bg-pink-100 dark:bg-pink-900/30">
+                            <AlertCircle className="w-8 h-8 text-pink-400" />
                         </div>
                         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Something went wrong</h1>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -61,8 +61,7 @@ class ErrorBoundary extends Component {
                         </div>
                         <button
                             onClick={() => window.location.reload()}
-                            className="text-white px-4 py-2 rounded-lg text-sm font-medium w-full hover:opacity-90 transition-opacity"
-                            style={{ backgroundColor: '#FF0084' }}
+                            className="text-white px-4 py-2 rounded-lg text-sm font-medium w-full hover:opacity-90 transition-opacity bg-pink-500 hover:bg-pink-600"
                         >
                             Refresh Page
                         </button>
@@ -96,7 +95,7 @@ function useRoute() {
 }
 
 // Component that uses project context for breadcrumbs
-function AppWithRouting({ authContextValue }) {
+function AppWithRouting() {
     const route = useRoute()
     const { getProject, getProjectPages } = useProjects()
 
@@ -167,11 +166,9 @@ function AppWithRouting({ authContextValue }) {
     const { component: PageComponent, breadcrumbs, projectId } = getPageConfig()
 
     return (
-        <DevAuthContext.Provider value={authContextValue}>
-            <Layout breadcrumbs={breadcrumbs}>
-                <PageComponent projectId={projectId} />
-            </Layout>
-        </DevAuthContext.Provider>
+        <Layout breadcrumbs={breadcrumbs}>
+            <PageComponent projectId={projectId} />
+        </Layout>
     )
 }
 
@@ -195,14 +192,16 @@ function App() {
     if (DEV_BYPASS_AUTH) {
         return (
             <ErrorBoundary>
-                <ProjectProvider>
-                    <GlossaryProvider>
-                        <PromptProvider>
-                            <AppWithRouting authContextValue={authContextValue} />
-                            <Toaster />
-                        </PromptProvider>
-                    </GlossaryProvider>
-                </ProjectProvider>
+                <DevAuthContext.Provider value={authContextValue}>
+                    <ProjectProvider>
+                        <GlossaryProvider>
+                            <PromptProvider>
+                                <AppWithRouting />
+                                <Toaster />
+                            </PromptProvider>
+                        </GlossaryProvider>
+                    </ProjectProvider>
+                </DevAuthContext.Provider>
             </ErrorBoundary>
         )
     }
@@ -232,16 +231,16 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <ProjectProvider>
-                <GlossaryProvider>
-                    <PromptProvider>
-                        <AuthProvider>
+            <AuthProvider>
+                <ProjectProvider>
+                    <GlossaryProvider>
+                        <PromptProvider>
                             <AppContent />
                             <Toaster />
-                        </AuthProvider>
-                    </PromptProvider>
-                </GlossaryProvider>
-            </ProjectProvider>
+                        </PromptProvider>
+                    </GlossaryProvider>
+                </ProjectProvider>
+            </AuthProvider>
         </ErrorBoundary>
     )
 }

@@ -1,9 +1,21 @@
 // PromptContext - Centralized state management for prompt templates
-// Now with Firestore persistence
+// Now with Firestore persistence and Audit Trail
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { FileText, Megaphone, Code, Scale, MessageSquare } from 'lucide-react'
 import * as firestoreService from '@/lib/firestore-service'
+import { logAction, AUDIT_ACTIONS } from '@/services/firebase/audit'
 import { toast } from "sonner"
+
+// Safe auth hook - returns null user if auth context not ready
+function useSafeAuth() {
+    try {
+        const { useAuth } = require('@/App')
+        const auth = useAuth()
+        return auth || { user: null }
+    } catch {
+        return { user: null }
+    }
+}
 
 // Icon mapping for prompt templates
 const iconMap = {
@@ -20,6 +32,7 @@ const iconMap = {
 const PromptContext = createContext(null)
 
 export function PromptProvider({ children }) {
+    const { user } = useSafeAuth()
     const [templates, setTemplates] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     const [dataSource, setDataSource] = useState('loading')
@@ -67,6 +80,12 @@ export function PromptProvider({ children }) {
             const created = await firestoreService.createTemplate(templateData)
             const enhanced = { ...created, icon: iconMap[created.iconName] || FileText }
             setTemplates(prev => [enhanced, ...prev])
+
+            // Audit log
+            await logAction(user, AUDIT_ACTIONS.PROMPT_CREATED, 'prompt', created.id, {
+                content: { after: { name: created.name, prompt: created.prompt } }
+            })
+
             return enhanced
         } catch (error) {
             console.error('Error creating template:', error)
@@ -77,16 +96,25 @@ export function PromptProvider({ children }) {
 
     // Update a template (with Firestore sync)
     const updateTemplate = useCallback(async (id, updates) => {
+        const existingTemplate = templates.find(t => t.id === id)
         try {
             await firestoreService.updateTemplate(id, updates)
-            setTemplates(prev => prev.map(t =>
-                t.id === id ? { ...t, ...updates } : t
-            ))
+            const updatedTemplate = { ...existingTemplate, ...updates }
+            setTemplates(prev => prev.map(t => t.id === id ? updatedTemplate : t))
+
+            // Audit log - check if this is a publish action
+            const action = updates.status === 'published' ? AUDIT_ACTIONS.PROMPT_PUBLISHED : AUDIT_ACTIONS.PROMPT_EDITED
+            await logAction(user, action, 'prompt', id, {
+                content: {
+                    before: { name: existingTemplate?.name, prompt: existingTemplate?.prompt },
+                    after: { name: updatedTemplate.name, prompt: updatedTemplate.prompt }
+                }
+            })
         } catch (error) {
             console.error("Failed to update template", error)
             toast.error("Failed to update template")
         }
-    }, [])
+    }, [templates, user])
 
     // Delete a template (with Firestore sync)
     const deleteTemplate = useCallback(async (id) => {

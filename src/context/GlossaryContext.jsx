@@ -1,8 +1,21 @@
 // GlossaryContext - Centralized state management for glossary terms
-// Now with Firestore persistence
+// Now with Firestore persistence and Audit Trail
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import * as firestoreService from '@/lib/firestore-service'
+import { logAction, AUDIT_ACTIONS } from '@/services/firebase/audit'
 import { toast } from "sonner"
+
+// Safe auth hook - returns null user if auth context not ready
+function useSafeAuth() {
+    try {
+        // Dynamic import to avoid circular dependency
+        const { useAuth } = require('@/App')
+        const auth = useAuth()
+        return auth || { user: null }
+    } catch {
+        return { user: null }
+    }
+}
 
 // Feature flag - set to true to use Firestore
 
@@ -10,6 +23,7 @@ import { toast } from "sonner"
 const GlossaryContext = createContext(null)
 
 export function GlossaryProvider({ children }) {
+    const { user } = useSafeAuth()
     const [terms, setTerms] = useState([])
     const [categories, setCategories] = useState([])
     const [isLoading, setIsLoading] = useState(true)
@@ -54,6 +68,12 @@ export function GlossaryProvider({ children }) {
         try {
             const created = await firestoreService.createGlossaryTerm(termData)
             setTerms(prev => [created, ...prev])
+
+            // Audit log
+            await logAction(user, AUDIT_ACTIONS.GLOSSARY_ADDED, 'glossary', created.id, {
+                content: { after: created }
+            })
+
             return created
         } catch (error) {
             console.error('Error creating glossary term:', error)
@@ -82,15 +102,20 @@ export function GlossaryProvider({ children }) {
 
     // Update a term (with Firestore sync)
     const updateTerm = useCallback(async (id, updates) => {
+        const existingTerm = terms.find(t => t.id === id)
         try {
             await firestoreService.updateGlossaryTerm(id, updates)
-            setTerms(prev => prev.map(t =>
-                t.id === id ? {
-                    ...t,
-                    ...updates,
-                    dateModified: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                } : t
-            ))
+            const updatedTerm = {
+                ...existingTerm,
+                ...updates,
+                dateModified: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            }
+            setTerms(prev => prev.map(t => t.id === id ? updatedTerm : t))
+
+            // Audit log
+            await logAction(user, AUDIT_ACTIONS.GLOSSARY_EDITED, 'glossary', id, {
+                content: { before: existingTerm, after: updatedTerm }
+            })
         } catch (error) {
             console.error("Failed to update term", error)
             toast.error("Failed to update term")
@@ -99,14 +124,20 @@ export function GlossaryProvider({ children }) {
 
     // Delete a term (with Firestore sync)
     const deleteTerm = useCallback(async (id) => {
+        const existingTerm = terms.find(t => t.id === id)
         try {
             await firestoreService.deleteGlossaryTerm(id)
             setTerms(prev => prev.filter(t => t.id !== id))
+
+            // Audit log
+            await logAction(user, AUDIT_ACTIONS.GLOSSARY_DELETED, 'glossary', id, {
+                content: { before: existingTerm }
+            })
         } catch (error) {
             console.error("Failed to delete term", error)
             toast.error("Failed to delete term")
         }
-    }, [])
+    }, [terms, user])
 
     // Bulk delete (with Firestore sync)
     const deleteTerms = useCallback(async (ids) => {

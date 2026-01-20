@@ -1,40 +1,13 @@
-// Shared UI Components matching Figma design system
-// These components provide consistent styling across the application
+// Shared UI Components - Concise & Clean
+// All colors are in tailwind.config.js - use Tailwind classes only
 
 import React from 'react'
+import { Button } from "./button"
 
 // ============================================
-// STYLE CONSTANTS - Figma Design Tokens
+// CONSTANTS
 // ============================================
 
-export const COLORS = {
-    // New Pink Color System (from CSS variables)
-    primary: '#FF0084',        // Main brand pink - hsl(329, 100%, 50%)
-    primaryHover: '#E60077',   // Darker for hover
-    secondary: '#FF4AA7',      // Secondary pink - hsl(329, 100%, 65%)
-    light: '#FFB9DD',          // Light pink - hsl(329, 100%, 86%)
-    border: 'hsl(220, 13%, 91%)',
-    textPrimary: 'hsl(222, 47%, 11%)',
-    textSecondary: 'hsl(220, 9%, 46%)',
-    backgroundLight: 'hsl(220, 14%, 96%)',
-    white: '#FFFFFF',
-    black: '#1C1C1C',
-    tagBackground: '#E5ECF6',
-
-    // Blue Color System
-    blue: '#2F3BF5',        // Secondary / Blue Default
-    blueMedium: '#5174FF',  // Blue Medium (for translation buttons)
-    blueLight: '#C5DDFF',   // Blue Light
-}
-
-export const RADIUS = {
-    sm: '6px',
-    md: '12px',
-    lg: '24px',
-    full: '9999px',
-}
-
-// Project Themes (Pastel backgrounds with matching icons)
 export const PROJECT_THEMES = [
     { id: 'pink', color: '#FFE5EC', border: '#FFB6C1', iconColor: '#EC4899' },
     { id: 'orange', color: '#FFF0E5', border: '#FFDAB9', iconColor: '#F97316' },
@@ -44,48 +17,32 @@ export const PROJECT_THEMES = [
     { id: 'purple', color: '#F3E5FF', border: '#D8B4FE', iconColor: '#7C3AED' },
 ]
 
+// Legacy COLORS export for backwards compatibility (use Tailwind instead)
+export const COLORS = {
+    primary: '#FF0084',
+    blueMedium: '#5174FF',
+}
+
 // ============================================
 // FORM COMPONENTS
 // ============================================
 
-// Form Field wrapper with label
-export function FormField({ label, required, children, style }) {
+export function FormField({ label, required, children, className }) {
     return (
-        <div style={{ marginBottom: '24px', ...style }}>
-            <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: COLORS.black,
-                marginBottom: '8px'
-            }}>
-                {label} {required && <span style={{ color: COLORS.primary }}>*</span>}
+        <div className={`mb-6 ${className || ''}`}>
+            <label className="block text-sm font-medium text-foreground mb-2">
+                {label} {required && <span className="text-primary">*</span>}
             </label>
             {children}
         </div>
     )
 }
 
-// Standard text input
-export function TextInput({ placeholder, value, onChange, required, style, ...props }) {
+export function TextInput({ className, ...props }) {
     return (
         <input
             type="text"
-            placeholder={placeholder}
-            value={value}
-            onChange={onChange}
-            required={required}
-            style={{
-                width: '100%',
-                padding: '12px 16px',
-                fontSize: '14px',
-                borderRadius: RADIUS.md,
-                border: `1px solid ${COLORS.border}`,
-                outline: 'none',
-                backgroundColor: COLORS.white,
-                boxSizing: 'border-box',
-                ...style, // Merge user provided style last
-            }}
+            className={`w-full px-4 py-3 text-sm rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary/20 ${className || ''}`}
             {...props}
         />
     )
@@ -95,59 +52,30 @@ export function TextInput({ placeholder, value, onChange, required, style, ...pr
 // BUTTON COMPONENTS
 // ============================================
 
-// ============================================
-// BUTTON COMPONENTS
-// ============================================
-
-import { Button } from "./button"
-
-// Primary button (pink CTA)
 export function PrimaryButton({ children, onClick, disabled, type = 'button', style, className }) {
     return (
-        <Button
-            type={type}
-            onClick={onClick}
-            disabled={disabled}
-            style={style}
-            className={className}
-        >
+        <Button type={type} onClick={onClick} disabled={disabled} style={style} className={className}>
             {children}
         </Button>
     )
 }
 
-// Secondary/outline button
 export function SecondaryButton({ children, onClick, type = 'button', style, className }) {
     return (
-        <Button
-            variant="outline"
-            type={type}
-            onClick={onClick}
-            style={style}
-            className={className}
-        >
+        <Button variant="outline" type={type} onClick={onClick} style={style} className={className}>
             {children}
         </Button>
     )
 }
 
-// Icon button (transparent background)
-export function IconButton({ children, onClick, title, style, className }) {
+export function IconButton({ children, onClick, title, className }) {
     return (
-        <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClick}
-            title={title}
-            style={{ width: '32px', height: '32px', ...style }}
-            className={`h-8 w-8 ${className || ''}`}
-        >
+        <Button variant="ghost" size="icon" onClick={onClick} title={title} className={`h-8 w-8 ${className || ''}`}>
             {children}
         </Button>
     )
 }
 
-// Pill button for action bar
 export function PillButton({ children, onClick, disabled, variant = 'outline', style, className, type = 'button' }) {
     return (
         <Button
@@ -167,20 +95,10 @@ export function PillButton({ children, onClick, disabled, variant = 'outline', s
 // MODAL COMPONENTS
 // ============================================
 
-// Modal overlay
 export function ModalOverlay({ children, onClose }) {
     return (
         <div
-            style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                backdropFilter: 'blur(4px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 50,
-            }}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
             onClick={(e) => e.target === e.currentTarget && onClose?.()}
         >
             {children}
@@ -188,44 +106,26 @@ export function ModalOverlay({ children, onClose }) {
     )
 }
 
-// Modal content box
 export function ModalContent({ children, maxWidth = '560px' }) {
     return (
         <div
-            style={{
-                backgroundColor: COLORS.white,
-                borderRadius: RADIUS.lg,
-                padding: '40px 48px 56px',
-                width: '100%',
-                maxWidth,
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            }}
+            className="bg-background rounded-3xl p-10 w-full shadow-2xl"
+            style={{ maxWidth }}
         >
             {children}
         </div>
     )
 }
 
-// Modal header with title and close button
 export function ModalHeader({ title, onClose }) {
     return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            marginBottom: '24px',
-        }}>
-            <h2 style={{
-                fontSize: '24px',
-                fontWeight: 700,
-                color: COLORS.black,
-                padding: '4px 8px',
-            }}>
+        <div className="flex items-start justify-between mb-6">
+            <h2 className="text-2xl font-bold text-foreground px-2">
                 {title}
             </h2>
             {onClose && (
                 <IconButton onClick={onClose}>
-                    <span style={{ fontSize: '18px' }}>×</span>
+                    <span className="text-lg">×</span>
                 </IconButton>
             )}
         </div>
@@ -236,38 +136,14 @@ export function ModalHeader({ title, onClose }) {
 // TAG COMPONENTS
 // ============================================
 
-// Removable tag (for language selection etc.)
 export function RemovableTag({ label, onRemove }) {
     return (
-        <span
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
-                borderRadius: RADIUS.full,
-                backgroundColor: COLORS.tagBackground,
-                fontSize: '14px',
-                color: COLORS.black,
-            }}
-        >
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-sm text-foreground">
             {label}
             <button
                 type="button"
                 onClick={onRemove}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
-                    color: COLORS.black,
-                    fontSize: '14px',
-                }}
+                className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-foreground/10"
             >
                 ×
             </button>
@@ -275,21 +151,9 @@ export function RemovableTag({ label, onRemove }) {
     )
 }
 
-// Tag container (for multi-select fields)
 export function TagContainer({ children }) {
     return (
-        <div
-            style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px',
-                padding: '12px 16px',
-                borderRadius: RADIUS.md,
-                border: `1px solid ${COLORS.border}`,
-                minHeight: '48px',
-                alignItems: 'center',
-            }}
-        >
+        <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-border min-h-12 items-center">
             {children}
         </div>
     )
@@ -299,24 +163,12 @@ export function TagContainer({ children }) {
 // TABLE COMPONENTS
 // ============================================
 
-// Table action icon button
 export function TableActionButton({ children, onClick, title }) {
     return (
         <button
             onClick={onClick}
             title={title}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '24px',
-                height: '24px',
-                borderRadius: '4px',
-                border: 'none',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                color: COLORS.textSecondary,
-            }}
+            className="flex items-center justify-center w-6 h-6 rounded bg-transparent cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted"
         >
             {children}
         </button>
@@ -327,26 +179,13 @@ export function TableActionButton({ children, onClick, title }) {
 // DROPDOWN COMPONENTS
 // ============================================
 
-// Custom styled select dropdown
-export function SelectDropdown({ value, onChange, options, placeholder, style }) {
+export function SelectDropdown({ value, onChange, options, placeholder, className }) {
     return (
-        <div style={{ position: 'relative', ...style }}>
+        <div className={`relative ${className || ''}`}>
             <select
                 value={value}
                 onChange={onChange}
-                style={{
-                    width: '100%',
-                    height: '44px',
-                    padding: '0 40px 0 16px',
-                    fontSize: '14px',
-                    borderRadius: RADIUS.md,
-                    border: `1px solid ${COLORS.border}`,
-                    outline: 'none',
-                    backgroundColor: COLORS.white,
-                    cursor: 'pointer',
-                    appearance: 'none',
-                    color: value ? COLORS.textPrimary : COLORS.textSecondary,
-                }}
+                className="w-full h-11 px-4 pr-10 text-sm rounded-xl border border-border bg-background outline-none cursor-pointer appearance-none"
             >
                 {placeholder && <option value="">{placeholder}</option>}
                 {options.map(opt => (
@@ -355,22 +194,11 @@ export function SelectDropdown({ value, onChange, options, placeholder, style })
                     </option>
                 ))}
             </select>
-            {/* Chevron icon */}
-            <div style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={COLORS.textSecondary} strokeWidth="2">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground">
                     <path d="M6 9l6 6 6-6" />
                 </svg>
             </div>
         </div>
     )
 }
-

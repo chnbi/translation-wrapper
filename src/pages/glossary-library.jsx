@@ -1,6 +1,6 @@
 
 // Glossary - Manage translation terms with status workflow (Project-page style UI)
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Plus, Search, Download, Filter, ArrowUpDown, CheckCircle2, Clock, XCircle, Check, Trash2, Upload, MoreHorizontal, Loader2, Pencil, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,7 @@ import { PromptCategoryDropdown } from "@/components/ui/PromptCategoryDropdown"
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { DuplicateGlossaryDialog } from "@/components/dialogs/DuplicateGlossaryDialog"
 import { getStatusConfig } from "@/lib/constants"
+import { useApprovalNotifications } from "@/hooks/useApprovalNotifications"
 
 
 // Using centralized STATUS_CONFIG from @/lib/constants
@@ -59,6 +60,13 @@ export default function Glossary() {
     const [duplicates, setDuplicates] = useState([])
     const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false)
     const [duplicateConfirm, setDuplicateConfirm] = useState(null) // { term, matchedTerm }
+    const { markAsViewed, isRowNew } = useApprovalNotifications()
+
+    // Mark as viewed on mount
+    useEffect(() => {
+        markAsViewed('glossary', 'main')
+    }, [])
+
 
     // Translation handler - same logic as project page
     const handleTranslateAll = async () => {
@@ -137,13 +145,19 @@ export default function Glossary() {
     }
 
     // Send for review - change status of terms with complete translations
+    // Send for review - change status of terms with complete translations
     const handleSendForReview = async () => {
-        // Get terms that have all translations filled and are still in draft
-        const termsToSend = terms.filter(term =>
-            term.malay?.trim() &&
-            term.chinese?.trim() &&
-            term.status === 'draft'
-        )
+        let termsToSend = []
+
+        if (selectedIds.length > 0) {
+            termsToSend = terms.filter(t => selectedIds.includes(t.id))
+        } else {
+            // Fallback: Send all eligible from filtered view
+            termsToSend = filteredTerms.filter(t => t.status !== 'review' && t.status !== 'approved')
+            if (termsToSend.length === 0) {
+                termsToSend = filteredTerms.filter(t => t.status !== 'approved')
+            }
+        }
 
         if (termsToSend.length === 0) {
             toast.info('No terms ready for review')
@@ -151,10 +165,15 @@ export default function Glossary() {
         }
 
         try {
+            let successCount = 0
             for (const term of termsToSend) {
-                await updateTerm(term.id, { status: 'review' })
+                if (term.status !== 'review') {
+                    await updateTerm(term.id, { status: 'review' })
+                    successCount++
+                }
             }
-            toast.success(`Sent ${termsToSend.length} terms for review`)
+            setSelectedIds([])
+            toast.success(`Sent ${successCount || termsToSend.length} terms for review`)
         } catch (error) {
             toast.error('Failed to send for review')
         }
@@ -206,9 +225,23 @@ export default function Glossary() {
     const hasSelection = selectedIds.length > 0
     const relevantTerms = hasSelection
         ? (terms || []).filter(term => term && selectedIds.includes(term.id))
-        : (terms || [])
+        : filteredTerms // Use filtered terms for context if no selection (aligned with Project logic)
+
     const hasEmptyTranslations = relevantTerms.some(term => term && (!term.malay?.trim() || !term.chinese?.trim()))
-    const allTranslated = hasTerms && !relevantTerms.some(term => term && (!term.malay?.trim() || !term.chinese?.trim()))
+
+    // Check if ALL rows have translations filled (filtered view)
+    const allFilled = hasTerms && filteredTerms.every(term => term.malay?.trim() && term.chinese?.trim())
+
+    // Check if SELECTED rows have translations filled
+    const selectionFilled = hasSelection && terms
+        .filter(t => selectedIds.includes(t.id))
+        .every(t => t.malay?.trim() && t.chinese?.trim())
+
+    const allTranslated = hasTerms && !hasEmptyTranslations // simplified check (matches previous logic roughly but cleaning it up)
+    // Actually, let's keep allTranslated as "Completed logic" (review or approved OR filled)
+    // Project uses: status check OR content check.
+    // Glossary previous: !hasEmptyTranslations.
+
     const allApproved = hasTerms && (terms || []).every(term => !term || term.status === 'approved')
 
     const handleSort = (field) => {
@@ -629,6 +662,7 @@ export default function Glossary() {
                         )}
 
                         {/* Import - always shown unless selection active */}
+                        {/* Import - always shown unless selection active */}
                         {canDo(ACTIONS.CREATE_GLOSSARY) && !hasSelection && (
                             <PillButton
                                 variant="outline"
@@ -638,31 +672,54 @@ export default function Glossary() {
                             </PillButton>
                         )}
 
-                        {/* Delete - only show when selection active */}
+                        {/* Selection Actions */}
                         {hasSelection && (
-                            <PillButton
-                                variant="outline"
-                                onClick={handleBulkDelete}
-                            >
-                                <Trash2 style={{ width: '16px', height: '16px' }} /> Delete {selectedIds.length}
-                            </PillButton>
+                            <>
+                                <PillButton
+                                    variant="outline"
+                                    onClick={handleBulkDelete}
+                                >
+                                    <Trash2 style={{ width: '16px', height: '16px' }} /> Delete {selectedIds.length}
+                                </PillButton>
+
+                                {/* Translate Selected (if not approved/filled?) - Keeping existing logic "Translate {N}" */}
+                                {!allApproved && (
+                                    <PrimaryButton
+                                        style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium, marginLeft: '8px' }}
+                                        onClick={handleTranslateAll}
+                                        disabled={isTranslating}
+                                    >
+                                        <span style={{ fontSize: '14px' }}>✦</span> Translate {selectedIds.length}
+                                    </PrimaryButton>
+                                )}
+
+                                {/* Send to Review - Only if selected rows are filled - RIGHTMOST */}
+                                {selectionFilled && (
+                                    <PrimaryButton
+                                        style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
+                                        onClick={handleSendForReview}
+                                    >
+                                        <Send style={{ width: '14px', height: '14px' }} /> Send {selectedIds.length} to Review
+                                    </PrimaryButton>
+                                )}
+                            </>
                         )}
 
-                        {/* Export - only show when all terms are approved */}
-                        {allApproved && (
+                        {/* Export - Available when NO selection and ALL FILLED */}
+                        {hasTerms && !hasSelection && allFilled && (
                             <PillButton
                                 variant="outline"
+                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
                                 onClick={handleExport}
                             >
-                                <Download style={{ width: '16px', height: '16px' }} /> Export
+                                <Download style={{ width: '14px', height: '14px' }} /> Export
                             </PillButton>
                         )}
 
-                        {/* Translate Functions */}
-                        {/* Case 2: Pending (No Selection, Not all translated) -> Translate Empty */}
-                        {hasTerms && !hasSelection && !allTranslated && (
+                        {/* Translate No Selection */}
+                        {hasTerms && !hasSelection && !allFilled && (
                             <PrimaryButton
-                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium }}
+                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium, marginLeft: '8px' }}
                                 onClick={handleTranslateAll}
                                 disabled={isTranslating}
                             >
@@ -674,34 +731,14 @@ export default function Glossary() {
                             </PrimaryButton>
                         )}
 
-                        {/* Case 3: Translated (No Selection, All translated, Not all approved) -> Export + Send for Review */}
+                        {/* Send for Review No Selection */}
                         {hasTerms && !hasSelection && allTranslated && !allApproved && (
-                            <>
-                                <PillButton
-                                    variant="outline"
-                                    style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginRight: '8px' }}
-                                    onClick={handleExport}
-                                >
-                                    <Download style={{ width: '14px', height: '14px' }} /> Export
-                                </PillButton>
-                                <PrimaryButton
-                                    style={{ height: '32px', fontSize: '12px', padding: '0 16px' }} // Pink
-                                    onClick={handleSendForReview}
-                                    disabled={isTranslating}
-                                >
-                                    <Send style={{ width: '14px', height: '14px' }} /> Send for Review
-                                </PrimaryButton>
-                            </>
-                        )}
-
-                        {/* Case 4 & 5: Selection (Pending or Review) -> Translate Only (Blue) */}
-                        {hasSelection && !allApproved && (
                             <PrimaryButton
-                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium }}
-                                onClick={handleTranslateAll}
+                                style={{ height: '32px', fontSize: '12px', padding: '0 16px', marginLeft: '8px' }}
+                                onClick={handleSendForReview}
                                 disabled={isTranslating}
                             >
-                                <span style={{ fontSize: '14px' }}>✦</span> Translate {selectedIds.length}
+                                <Send style={{ width: '14px', height: '14px' }} /> Send for Review
                             </PrimaryButton>
                         )}
                     </div>
@@ -889,44 +926,26 @@ export default function Glossary() {
                 />
 
                 {/* Delete Single Term Confirmation */}
-                {deleteConfirm && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-xl">
-                            <h3 className="text-lg font-semibold mb-2">Delete Term?</h3>
-                            <p className="text-muted-foreground text-sm mb-4">
-                                This action cannot be undone. The glossary term will be permanently deleted.
-                            </p>
-                            <div className="flex gap-3 justify-end">
-                                <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
-                                    Cancel
-                                </Button>
-                                <Button variant="destructive" onClick={() => handleDelete(deleteConfirm)}>
-                                    Delete
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ConfirmDialog
+                    open={!!deleteConfirm}
+                    onClose={() => setDeleteConfirm(null)}
+                    onConfirm={() => handleDelete(deleteConfirm)}
+                    title="Delete Term?"
+                    message="Are you sure you want to delete this term? This action cannot be undone."
+                    confirmLabel="Delete"
+                    variant="destructive"
+                />
 
                 {/* Bulk Delete Confirmation */}
-                {bulkDeleteConfirm && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-xl">
-                            <h3 className="text-lg font-semibold mb-2">Delete {selectedIds.length} Terms?</h3>
-                            <p className="text-muted-foreground text-sm mb-4">
-                                This action cannot be undone. {selectedIds.length} glossary terms will be permanently deleted.
-                            </p>
-                            <div className="flex gap-3 justify-end">
-                                <Button variant="outline" onClick={() => setBulkDeleteConfirm(false)}>
-                                    Cancel
-                                </Button>
-                                <Button variant="destructive" onClick={handleBulkDelete}>
-                                    Delete All
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ConfirmDialog
+                    open={bulkDeleteConfirm}
+                    onClose={() => setBulkDeleteConfirm(false)}
+                    onConfirm={handleBulkDelete}
+                    title={`Delete ${selectedIds.length} Terms?`}
+                    message={`Are you sure you want to delete ${selectedIds.length} terms? This action cannot be undone.`}
+                    confirmLabel="Delete All"
+                    variant="destructive"
+                />
 
                 {/* Duplicate Confirmation Dialog */}
                 <ConfirmDialog

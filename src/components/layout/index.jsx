@@ -50,27 +50,8 @@ function TopBar({ breadcrumbs }) {
             borderBottom: '1px solid hsl(220, 13%, 91%)',
             backgroundColor: 'white'
         }}>
-            {/* Left: Toggle + Breadcrumbs */}
+            {/* Left: Breadcrumbs */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* Sidebar Toggle */}
-                <button
-                    onClick={toggleSidebar}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '6px',
-                        border: '1px solid hsl(220, 13%, 91%)',
-                        backgroundColor: 'white',
-                        cursor: 'pointer'
-                    }}
-                    title="Toggle Sidebar"
-                >
-                    <PanelLeft style={{ width: '16px', height: '16px', color: 'hsl(220, 9%, 46%)' }} />
-                </button>
-
                 {/* Breadcrumbs */}
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {breadcrumbs.map((crumb, index) => {

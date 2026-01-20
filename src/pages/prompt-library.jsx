@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Search, Plus, Filter, MoreHorizontal, Copy, Pencil, Trash2, X, CirclePlus, Pin } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PromptDetailDialog } from "@/components/dialogs"
+import { PromptDetailDialog, ConfirmDialog } from "@/components/dialogs"
 import { usePrompts } from "@/context/PromptContext"
 import { useAuth, ACTIONS } from "@/App"
 import { COLORS, PrimaryButton, SecondaryButton, PillButton, IconButton } from "@/components/ui/shared"
@@ -506,62 +506,15 @@ export default function PromptLibrary() {
             />
 
             {/* Delete Confirmation */}
-            {
-                deleteConfirm && (
-                    <div
-                        style={{
-                            position: 'fixed',
-                            inset: 0,
-                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                            backdropFilter: 'blur(4px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 50
-                        }}
-                        onClick={() => setDeleteConfirm(null)}
-                    >
-                        <div
-                            style={{
-                                backgroundColor: 'white',
-                                borderRadius: '24px',
-                                padding: '32px',
-                                maxWidth: '400px',
-                                width: '100%',
-                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-                            }}
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <h3 style={{
-                                fontSize: '18px',
-                                fontWeight: 600,
-                                marginBottom: '8px'
-                            }}>
-                                Delete Prompt?
-                            </h3>
-                            <p style={{
-                                fontSize: '14px',
-                                color: 'hsl(220, 9%, 46%)',
-                                marginBottom: '24px'
-                            }}>
-                                This action cannot be undone. Projects using this prompt will be set to "Default".
-                            </p>
-                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                                <SecondaryButton onClick={() => setDeleteConfirm(null)}>
-                                    Cancel
-                                </SecondaryButton>
-                                <Button
-                                    variant="destructive"
-                                    onClick={() => handleDelete(deleteConfirm)}
-                                    className="rounded-xl"
-                                >
-                                    Delete
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            <ConfirmDialog
+                open={!!deleteConfirm}
+                onClose={() => setDeleteConfirm(null)}
+                onConfirm={() => handleDelete(deleteConfirm)}
+                title="Delete Prompt?"
+                message="Are you sure you want to delete this prompt? This action cannot be undone. Projects using this prompt will be set to Default."
+                confirmLabel="Delete"
+                variant="destructive"
+            />
         </div>
     )
 }

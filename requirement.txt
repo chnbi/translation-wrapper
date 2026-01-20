@@ -2,8 +2,8 @@
 # SNOWUI TRANSLATION WRAPPER - PRODUCT REQUIREMENTS DOCUMENT
 # =============================================================================
 # 
-# VERSION: 3.0
-# LAST UPDATED: 2026-01-11
+# VERSION: 3.1
+# LAST UPDATED: 2026-01-16
 # STATUS LEGEND: [DONE] = Completed | [PARTIAL] = In Progress | [PLANNED] = Not started
 #
 # =============================================================================
@@ -188,7 +188,7 @@ Three-level translation system with progressive granularity:
 |---------|-------------|--------|
 | Focus Mode | Hide specific columns | [PLANNED] |
 | Ghost Row | Permanent empty row at bottom | [PLANNED] |
-| Glossary Highlights | Underline terms from glossary | [PLANNED] |
+| Glossary Highlights | Highlight terms from glossary (pink) | [DONE] |
 | Inline Add Row | Add row without popup | [DONE] |
 
 ## 5.4 STATUS INDICATORS [PARTIAL]
@@ -249,30 +249,39 @@ Logic:
 - Glossary injection into translation prompts
 - Status field: pending/approved (only approved used in AI)
 
-## 7.2 EDITOR INTEGRATION [PLANNED]
+## 7.2 EDITOR INTEGRATION [DONE]
 --------------------------------------------------------------------------------
-- Underline glossary terms in source text
-- Hover tooltip showing mandatory translation
+- Glossary terms highlighted in pink in Project Details table
+- Uses `GlossaryHighlighter` component (reused from Quick Check)
+- Hover tooltip shows mandatory translation
 
 
 # =============================================================================
 # SECTION 8: PROMPT ENGINEERING
 # =============================================================================
 
-## 8.1 INHERITANCE LOGIC ("The Layer Cake") [PLANNED]
+## 8.1 INHERITANCE LOGIC ("The Layer Cake") [DONE]
 --------------------------------------------------------------------------------
-Conceptual Model:
+Implemented Model:
 1. Layer 1: Global Default (The Base)
-   - Applies to ALL translations.
+   - ALWAYS used for ALL translations.
    - Example: "Professional tone, formal rules, glossary usage."
    - Editable ONLY by Manager.
 
 2. Layer 2: Category (The Flavor)
-   - Appended to Global Default.
+   - APPENDED to Global Default (not replaced).
    - Example: "Banner Mode: Short, punchy."
-   - Selectable by Editor.
+   - Selectable by Editor per-row.
 
 Final Prompt sent to AI = [Global Default] + [Category Specific Instructions]
+
+## 8.2 GROUPED TRANSLATION [DONE]
+--------------------------------------------------------------------------------
+When translating mixed selections:
+- Rows grouped by their promptId
+- Each group translated with its respective merged prompt
+- Separate API calls per prompt group
+- Example: 3 rows with "B" + 2 rows with "Default" = 2 API calls
 
 ## 8.2 ROLE-BASED ACCESS [PLANNED]
 --------------------------------------------------------------------------------
@@ -315,6 +324,13 @@ Editor View (Translation Table):
 # =============================================================================
 # SECTION 10: VERSION HISTORY
 # =============================================================================
+
+v3.1 (2026-01-16):
+- Implemented prompt merging: custom prompts append to default
+- Added grouped translation by promptId
+- Implemented glossary highlighting in Project Details
+- Fixed Bahasa Malaysia prompt instructions being ignored
+- Created reusable GlossaryHighlighter component
 
 v3.0 (2026-01-11):
 - Restructured to SnowUI PRD format
