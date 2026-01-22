@@ -19,6 +19,7 @@ pocketbase/pocketbase.exe
 pocketbase/pb_data/
 
 # Archive (large folder, don't need in git)
+.archive/
 _archive/
 _archived/
 src/archive/

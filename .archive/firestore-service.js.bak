@@ -1,9 +1,0 @@
-// Database Service - Backend Abstraction Layer
-// All functions are now in services/pocketbase/ for PocketBase backend
-// This file provides full backward compatibility for existing imports
-
-// ACTIVE BACKEND: PocketBase (local)
-export * from '../services/pocketbase'
-
-// To switch back to Firebase, comment the line above and uncomment below:
-// export * from '../services/firebase'
