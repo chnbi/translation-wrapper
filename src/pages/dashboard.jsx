@@ -30,6 +30,7 @@ export default function Dashboard() {
     const { projects, deleteProject, addProject } = useProjects()
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
     const [deleteConfirm, setDeleteConfirm] = useState(null)
+    const [importData, setImportData] = useState(null) // For import mode
     const fileInputRef = useRef(null)
 
     // Pagination state
@@ -39,8 +40,9 @@ export default function Dashboard() {
     const handleCreateProject = async (projectData) => {
         const result = await addProject(projectData)
         setIsNewProjectOpen(false)
+        setImportData(null) // Clear import data
         if (result?.id) {
-            toast.success("New project created!")
+            toast.success(projectData.sheets ? "Project imported successfully!" : "New project created!")
             window.location.hash = `#project/${result.id}${result.firstPageId ? `?page=${result.firstPageId}` : ''}`
         }
     }
@@ -56,35 +58,30 @@ export default function Dashboard() {
 
             const sheets = {}
             Object.values(data).forEach(sheet => {
-                sheets[sheet.name] = sheet.entries.map(entry => ({
-                    en: entry.english || '',
-                    my: entry.malay || '',
-                    zh: entry.chinese || ''
-                }))
+                // Entries are already normalized by parseExcelFile with language code keys
+                sheets[sheet.name] = sheet.entries
             })
 
             const projectName = file.name.replace(/\.[^/.]+$/, "")
-            const result = await addProject({
-                name: projectName,
-                description: 'Imported from Excel',
-                targetLanguages: ['my', 'zh'],
-                sheets: sheets // Pass processed sheets
-            })
 
-            if (result?.id) {
-                toast.success(`Imported "${projectName}" successfully! Redirecting...`)
-                // Use setTimeout to allow toast to be seen briefly/ensure state update
-                setTimeout(() => {
-                    window.location.hash = `#project/${result.id}${result.firstPageId ? `?page=${result.firstPageId}` : ''}`
-                }, 500)
-            }
+            // Open dialog with import data for user to select languages
+            setImportData({
+                fileName: projectName,
+                sheets: sheets
+            })
+            setIsNewProjectOpen(true)
 
         } catch (error) {
             console.error("Import failed:", error)
-            toast.error("Failed to import project: " + error.message)
+            toast.error("Failed to parse file: " + error.message)
         } finally {
             if (fileInputRef.current) fileInputRef.current.value = ''
         }
+    }
+
+    const handleCloseDialog = () => {
+        setIsNewProjectOpen(false)
+        setImportData(null)
     }
 
     // Compute Stats
@@ -279,8 +276,9 @@ export default function Dashboard() {
             </div>
             <NewProjectForm
                 isOpen={isNewProjectOpen}
-                onClose={() => setIsNewProjectOpen(false)}
+                onClose={handleCloseDialog}
                 onSubmit={handleCreateProject}
+                importData={importData}
             />
 
             <ConfirmDialog

@@ -74,24 +74,17 @@ export const STATUS_FILTER_OPTIONS = [
 // ============================================
 // LANGUAGE CONFIGURATION
 // Central source of truth for all supported languages
+// To add a new language: simply add an entry below with the same structure
 // ============================================
 
 export const LANGUAGES = {
     en: { id: 'en', code: 'en', label: 'English', nativeLabel: 'English', direction: 'ltr' },
     my: { id: 'my', code: 'my', label: 'Bahasa Malaysia', nativeLabel: 'Bahasa Malaysia', direction: 'ltr' },
     zh: { id: 'zh', code: 'zh', label: 'Simplified Chinese', nativeLabel: '简体中文', direction: 'ltr' },
-    ja: { id: 'ja', code: 'ja', label: 'Japanese', nativeLabel: '日本語', direction: 'ltr' },
-    ko: { id: 'ko', code: 'ko', label: 'Korean', nativeLabel: '한국어', direction: 'ltr' },
-    th: { id: 'th', code: 'th', label: 'Thai', nativeLabel: 'ไทย', direction: 'ltr' },
-    vi: { id: 'vi', code: 'vi', label: 'Vietnamese', nativeLabel: 'Tiếng Việt', direction: 'ltr' },
-    id: { id: 'id', code: 'id', label: 'Indonesian', nativeLabel: 'Bahasa Indonesia', direction: 'ltr' },
-    ar: { id: 'ar', code: 'ar', label: 'Arabic', nativeLabel: 'العربية', direction: 'rtl' },
-    hi: { id: 'hi', code: 'hi', label: 'Hindi', nativeLabel: 'हिन्दी', direction: 'ltr' },
-    fr: { id: 'fr', code: 'fr', label: 'French', nativeLabel: 'Français', direction: 'ltr' },
-    de: { id: 'de', code: 'de', label: 'German', nativeLabel: 'Deutsch', direction: 'ltr' },
-    es: { id: 'es', code: 'es', label: 'Spanish', nativeLabel: 'Español', direction: 'ltr' },
-    pt: { id: 'pt', code: 'pt', label: 'Portuguese', nativeLabel: 'Português', direction: 'ltr' },
-    tl: { id: 'tl', code: 'tl', label: 'Filipino', nativeLabel: 'Filipino', direction: 'ltr' },
+    // Future languages can be added here:
+    // ja: { id: 'ja', code: 'ja', label: 'Japanese', nativeLabel: '日本語', direction: 'ltr' },
+    // ko: { id: 'ko', code: 'ko', label: 'Korean', nativeLabel: '한국어', direction: 'ltr' },
+    // th: { id: 'th', code: 'th', label: 'Thai', nativeLabel: 'ไทย', direction: 'ltr' },
 }
 
 // Default source language (can be overridden per project)

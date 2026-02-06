@@ -1,5 +1,6 @@
 // Excel Import/Export using SheetJS
 import * as XLSX from 'xlsx'
+import { LANGUAGES } from '@/lib/constants'
 
 /**
  * Parse an Excel file and return structured data
@@ -35,15 +36,15 @@ export async function parseExcelFile(file) {
                         startRow = 1
                     }
 
-                    // Find header row (looking for language columns)
-                    // Support many variations of column names
-                    const languageKeywords = [
-                        'english', 'malay', 'chinese', 'en', 'bm', 'cn', 'zh',
-                        'source', 'target', 'bahasa', 'melayu', 'mandarin',
-                        '中文', '英文', '马来文', 'chn', 'eng', 'bahasa malaysia',
-                        'chinese (simplified)', 'chinese (traditional)'
-                    ]
+                    // Build dynamic keywords from constants
+                    const languageKeywords = ['source', 'target', 'english', 'eng', 'en'] // Always include English/Source
+                    Object.values(LANGUAGES).forEach(lang => {
+                        languageKeywords.push(lang.label.toLowerCase())
+                        languageKeywords.push(lang.nativeLabel.toLowerCase())
+                        languageKeywords.push(lang.code.toLowerCase())
+                    })
 
+                    // Find header row
                     let headerRow = startRow
                     for (let i = startRow; i < Math.min(startRow + 5, jsonData.length); i++) {
                         const row = jsonData[i]
@@ -60,38 +61,35 @@ export async function parseExcelFile(file) {
                         typeof h === 'string' ? h.toLowerCase().trim() : ''
                     ) || []
 
-                    // Map common header variations to normalized names
+                    // Build dynamic header map
                     const headerMap = {
-                        // English variations
-                        'en': 'english',
-                        'eng': 'english',
-                        'source': 'english',
-                        '英文': 'english',
-                        // Malay variations
-                        'bm': 'malay',
-                        'bahasa': 'malay',
-                        'melayu': 'malay',
-                        'bahasa malaysia': 'malay',
-                        '马来文': 'malay',
-                        // Chinese variations
-                        'cn': 'chinese',
-                        'zh': 'chinese',
-                        'chn': 'chinese',
-                        'mandarin': 'chinese',
-                        '中文': 'chinese',
-                        'chinese (simplified)': 'chinese',
-                        'chinese (traditional)': 'chinese',
+                        'source': 'en',
+                        'english': 'en',
+                        'eng': 'en',
+                        'en': 'en',
+                        '英文': 'en'
                     }
 
-                    // Normalize headers - check for partial matches too
+                    Object.values(LANGUAGES).forEach(lang => {
+                        if (lang.code === 'en') return
+                        headerMap[lang.code] = lang.code
+                        headerMap[lang.label.toLowerCase()] = lang.code
+                        headerMap[lang.nativeLabel.toLowerCase()] = lang.code
+                    })
+
+                    // Normalize headers
                     const normalizedHeaders = headers.map(h => {
-                        // Direct match first
+                        // Direct match
                         if (headerMap[h]) return headerMap[h]
-                        // Partial match (e.g., "Chinese (Simplified)" contains "chinese")
-                        if (h.includes('english') || h.includes('英文')) return 'english'
-                        if (h.includes('malay') || h.includes('bahasa') || h.includes('melayu')) return 'malay'
-                        if (h.includes('chinese') || h.includes('中文') || h.includes('mandarin')) return 'chinese'
-                        return h
+
+                        // Partial match logic
+                        if (h.includes('english') || h.includes('source')) return 'en'
+
+                        const matchedLang = Object.values(LANGUAGES).find(lang =>
+                            h.includes(lang.label.toLowerCase()) ||
+                            h.includes(lang.nativeLabel.toLowerCase())
+                        )
+                        return matchedLang ? matchedLang.code : h
                     })
 
                     // Extract entries
@@ -101,20 +99,21 @@ export async function parseExcelFile(file) {
                         if (!row || row.every(cell => !cell)) continue // Skip empty rows
 
                         const entry = {
-                            english: '',
-                            malay: '',
-                            chinese: '',
-                            category: '',
-                            remark: '',
                             rowIndex: i
                         }
 
                         normalizedHeaders.forEach((header, idx) => {
-                            if (['english', 'malay', 'chinese'].includes(header) && row[idx]) {
+                            // If header matches a language code
+                            if (LANGUAGES[header] && row[idx]) {
                                 entry[header] = String(row[idx]).trim()
                             }
-                            // Also capture category and remark for glossary imports
-                            if (header === 'category' && row[idx]) {
+
+                            // Map source explicitly to 'en' if not already
+                            if (header === 'en' && row[idx]) {
+                                entry.en = String(row[idx]).trim()
+                            }
+
+                            if ((header === 'category') && row[idx]) {
                                 entry.category = String(row[idx]).trim()
                             }
                             if ((header === 'remark' || header === 'remarks' || header === 'note' || header === 'notes') && row[idx]) {
@@ -123,7 +122,8 @@ export async function parseExcelFile(file) {
                         })
 
                         // Only add if at least one field has content
-                        if (entry.english || entry.malay || entry.chinese) {
+                        const hasContent = Object.keys(entry).some(k => k !== 'rowIndex' && k !== 'category' && k !== 'remark')
+                        if (hasContent) {
                             entries.push(entry)
                         }
                     }
@@ -154,6 +154,10 @@ export async function parseExcelFile(file) {
 export function exportToExcel(projectData, filename = 'translations.xlsx') {
     const workbook = XLSX.utils.book_new()
 
+    // Get all languages except source
+    const targetLangs = Object.values(LANGUAGES).filter(l => l.code !== 'en')
+    const headerRow = ['english', ...targetLangs.map(l => l.label.toLowerCase())]
+
     Object.entries(projectData.sheets || {}).forEach(([sheetName, sheetData]) => {
         const rows = []
 
@@ -163,11 +167,18 @@ export function exportToExcel(projectData, filename = 'translations.xlsx') {
         }
 
         // Add headers
-        rows.push(['english', 'malay', 'chinese'])
+        rows.push(headerRow)
 
         // Add entries
         sheetData.entries?.forEach(entry => {
-            rows.push([entry.english || '', entry.malay || '', entry.chinese || ''])
+            const rowData = [entry.en || entry.english || '']
+            targetLangs.forEach(lang => {
+                // Determine property name - might be code or property?
+                // Assuming export uses codes if normalized or passed from DB
+                // We check multiple variations
+                rowData.push(entry[lang.code] || entry[lang.label.toLowerCase()] || '')
+            })
+            rows.push(rowData)
         })
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows)
@@ -175,8 +186,7 @@ export function exportToExcel(projectData, filename = 'translations.xlsx') {
         // Set column widths
         worksheet['!cols'] = [
             { wch: 50 }, // English
-            { wch: 50 }, // Malay
-            { wch: 50 }  // Chinese
+            ...targetLangs.map(() => ({ wch: 50 })) // Others
         ]
 
         XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.substring(0, 31))

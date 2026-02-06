@@ -8,7 +8,7 @@
     :root {
         /* ===== UNIFIED THEME - Light Mode ===== */
         /* Based on Design System Color Grid */
-        
+
         /* Base - Paper White #F9F9F9 */
         --background: 0 0% 98%;
         --foreground: 222 47% 11%;
@@ -29,10 +29,10 @@
         /* Secondary Pink: #FF4AA7 */
         --secondary-pink: 329 100% 65%;
         --secondary-pink-foreground: 0 0% 100%;
-        
+
         /* Light Pink: #FFB9DD */
         --primary-light: 329 100% 86%;
-        
+
         /* Lightest Pink: #FFE5EC */
         --primary-lightest: 340 100% 95%;
 
@@ -57,7 +57,10 @@
         --input: 233 10% 91%;
         --ring: 329 100% 50%;
 
-        --radius: 0.5rem;
+        /* Softer, larger radius for "cute" feel */
+        --radius: 1rem;
+        --radius-card: 1.25rem;
+        --radius-button: 0.75rem;
 
         /* Sidebar: Light mode */
         --sidebar-background: 240 20% 98%;

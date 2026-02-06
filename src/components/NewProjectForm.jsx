@@ -1,6 +1,7 @@
 // New Project Form - Figma-styled modal for creating new projects
-import { useState } from "react"
-import { X, CirclePlus, Check } from "lucide-react"
+// Also supports import mode when importData is provided
+import { useState, useEffect } from "react"
+import { X, CirclePlus, Check, FileSpreadsheet } from "lucide-react"
 import {
     ModalOverlay,
     ModalContent,
@@ -26,11 +27,25 @@ const PROJECT_THEMES = [
     { id: 'purple', color: '#F3E5FF', border: '#D8B4FE', value: 'bg-[#F3E5FF]' },
 ]
 
-export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
+export default function NewProjectForm({ isOpen, onClose, onSubmit, importData = null }) {
+    // importData shape: { fileName: string, sheets: { [sheetName]: [rows] } }
+    const isImportMode = !!importData
+
     const [projectName, setProjectName] = useState('')
     const [description, setDescription] = useState('')
     const [selectedLanguages, setSelectedLanguages] = useState(DEFAULT_TARGET_LANGUAGES)
     const [selectedTheme, setSelectedTheme] = useState(PROJECT_THEMES[0].id)
+
+    // Pre-fill form when importData changes
+    useEffect(() => {
+        if (importData) {
+            setProjectName(importData.fileName || '')
+            setDescription('Imported from Excel')
+        } else {
+            setProjectName('')
+            setDescription('')
+        }
+    }, [importData])
 
     if (!isOpen) return null
 
@@ -38,12 +53,19 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
         e.preventDefault()
         if (!projectName.trim()) return
 
-        onSubmit({
+        const projectData = {
             name: projectName.trim(),
             description: description.trim(),
             targetLanguages: selectedLanguages,
-            themeColor: selectedTheme, // Save the selected theme color ID
-        })
+            themeColor: selectedTheme,
+        }
+
+        // If import mode, include the sheets data
+        if (isImportMode && importData.sheets) {
+            projectData.sheets = importData.sheets
+        }
+
+        onSubmit(projectData)
 
         // Reset form
         setProjectName('')
@@ -75,12 +97,32 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                         fontWeight: 700,
                         color: 'black',
                     }}>
-                        New Project
+                        {isImportMode ? 'Import Project' : 'New Project'}
                     </h2>
                     <IconButton onClick={onClose} style={{ color: '#9CA3AF' }}>
                         <X style={{ width: '20px', height: '20px' }} />
                     </IconButton>
                 </div>
+
+                {/* Import file indicator */}
+                {isImportMode && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px 16px',
+                        backgroundColor: '#F0FDF4',
+                        borderRadius: '8px',
+                        marginBottom: '16px',
+                        border: '1px solid #BBF7D0'
+                    }}>
+                        <FileSpreadsheet style={{ width: '18px', height: '18px', color: '#16A34A' }} />
+                        <span style={{ fontSize: '14px', color: '#166534' }}>
+                            Importing: <strong>{importData?.fileName}.xlsx</strong>
+                            {importData?.sheets && ` (${Object.keys(importData.sheets).length} sheet${Object.keys(importData.sheets).length > 1 ? 's' : ''})`}
+                        </span>
+                    </div>
+                )}
 
                 {/* Divider */}
                 <div style={{
@@ -163,7 +205,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                             type="submit"
                             disabled={!projectName.trim() || selectedLanguages.length === 0}
                         >
-                            Create project
+                            {isImportMode ? 'Import project' : 'Create project'}
                         </PrimaryButton>
                     </div>
                 </form>

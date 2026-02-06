@@ -1,7 +1,6 @@
-
 // Approvals - Review pending translations (Project-page style UI)
 import { useState, useEffect, useMemo } from "react"
-import { Search, Check, X } from "lucide-react"
+import { Search, Check, X, Undo2 } from "lucide-react"
 import { useProjects } from "@/context/ProjectContext"
 import { useGlossary } from "@/context/GlossaryContext"
 import { COLORS, PrimaryButton } from "@/components/ui/shared"
@@ -19,8 +18,13 @@ export default function Approvals() {
     const [searchQuery, setSearchQuery] = useState("")
     const [activeTab, setActiveTab] = useState("projects") // "projects" or "glossary"
     const [selectedIds, setSelectedIds] = useState([])
-    const [localApprovals, setLocalApprovals] = useState({}) // Track local approval state before save
-    const [localRemarks, setLocalRemarks] = useState({}) // Track remarks/comments for each row
+
+    // Per-language approval state: { [rowId]: { [langCode]: 'approved' | 'rejected' } }
+    const [localApprovals, setLocalApprovals] = useState({})
+
+    // Per-language remarks: { [rowId]: { [langCode]: "remark text" } }
+    const [localRemarks, setLocalRemarks] = useState({})
+
     const [projectReviewRows, setProjectReviewRows] = useState([])
 
     // Pagination state
@@ -34,84 +38,89 @@ export default function Approvals() {
         }
     }, [isManager])
 
-    // Show nothing while redirecting
-    if (!isManager) {
-        return null
-    }
-
     // Load project review rows from all pages AND legacy project rows
     useEffect(() => {
+        if (!isManager) return
+
         const loadProjectReviewRows = async () => {
             const allReviewRows = []
-            console.log('🔄 [Approvals] Loading. Projects:', projects.length)
+            // console.log('🔄 [Approvals] Loading. Projects:', projects.length)
 
             for (const project of projects) {
+                // Determine target languages for this project to check columns
+                const targetLangs = project.targetLanguages || ['my', 'zh'] // default fallback
+
+                // Helper to normalize row for UI
+                const normalizeRow = (row, pageId, pageName) => {
+                    // Start with base row
+                    const normalized = {
+                        ...row,
+                        projectId: project.id,
+                        projectName: project.name,
+                        pageId: pageId,
+                        pageName: pageName,
+                        targetLanguages: targetLangs, // Pass down for column filtering
+                        // Normalize translations structure if it's missing (legacy data)
+                        translations: row.translations || {}
+                    }
+
+                    // If legacy columns exist, backfill translations if not present
+                    targetLangs.forEach(lang => {
+                        if (!normalized.translations[lang]) {
+                            // Check legacy column
+                            if (row[lang]) {
+                                normalized.translations[lang] = {
+                                    text: row[lang],
+                                    status: row.status, // Inherit row status
+                                    remark: row.remarks || row.remark || ''
+                                }
+                            }
+                        }
+                    })
+
+                    return normalized
+                }
+
                 const pages = getProjectPages(project.id) || []
-                console.log(`Project ${project.id}: ${pages.length} pages`)
 
                 if (pages.length > 0) {
                     for (const page of pages) {
                         const rows = getPageRows(project.id, page.id) || []
                         const reviewRows = rows.filter(row => row.status === 'review')
 
-                        const statusCounts = rows.reduce((acc, row) => {
-                            acc[row.status || 'undefined'] = (acc[row.status || 'undefined'] || 0) + 1
-                            return acc
-                        }, {})
-                        console.log(`  Page ${page.name} (${page.id}): ${rows.length} rows. Statuses:`, statusCounts)
-
-                        const reviewRowsMapped = reviewRows.map(row => ({
-                            ...row,
-                            projectId: project.id,
-                            projectName: project.name,
-                            pageId: page.id,
-                            pageName: page.name || 'Sheet 1'
-                        }))
-                        allReviewRows.push(...reviewRowsMapped)
+                        allReviewRows.push(...reviewRows.map(r => normalizeRow(r, page.id, page.name || 'Sheet 1')))
                     }
                 } else {
                     const legacyRows = getProjectRows(project.id) || []
                     const reviewRows = legacyRows.filter(row => row.status === 'review')
 
-                    const statusCounts = legacyRows.reduce((acc, row) => {
-                        acc[row.status || 'undefined'] = (acc[row.status || 'undefined'] || 0) + 1
-                        return acc
-                    }, {})
-                    console.log(`  Legacy Project: ${legacyRows.length} rows. Statuses:`, statusCounts)
-
-                    const reviewRowsMapped = reviewRows.map(row => ({
-                        ...row,
-                        projectId: project.id,
-                        projectName: project.name,
-                        pageId: null,
-                        pageName: '—'
-                    }))
-                    allReviewRows.push(...reviewRowsMapped)
+                    allReviewRows.push(...reviewRows.map(r => normalizeRow(r, null, '—')))
                 }
             }
 
-            console.log('✅ [Approvals] Total review rows:', allReviewRows.length)
             setProjectReviewRows(allReviewRows)
         }
 
         loadProjectReviewRows()
-    }, [projects, getProjectPages, getPageRows, getProjectRows])
+    }, [projects, getProjectPages, getPageRows, getProjectRows, isManager])
 
-    // Gather glossary terms that need review (status = 'review')
+    // Gather glossary terms that need review
+    // Glossary uses a simpler structure, usually single status for everything or per-term?
+    // Assuming glossary is still simple for now, but let's normalize it to match structure if possible
+    // Or keep glossary logic separate. 
+    // Glossary terms usually have: english, malay, chinese, status. 
+    // Let's treat them as keys.
     const glossaryReviewRows = glossaryTerms
         .filter(term => term.status === 'review')
         .map(term => ({
             ...term,
             projectName: 'Glossary',
-            pageName: '—'
+            pageName: '—',
+            // Mock translation structure for unifying logic if needed, 
+            // but glossary table is separate, so we can keep separate logic.
         }))
 
-    // Debug: Log glossary terms status distribution
-    const glossaryStatusCounts = glossaryTerms.reduce((acc, term) => {
-        acc[term.status || 'undefined'] = (acc[term.status || 'undefined'] || 0) + 1
-        return acc
-    }, {})
-    console.log('📦 [Approvals] Glossary terms:', glossaryTerms.length, 'Statuses:', glossaryStatusCounts, 'In review:', glossaryReviewRows.length)
+    if (!isManager) return null
 
     // Active rows based on tab
     const activeRows = activeTab === "projects" ? projectReviewRows : glossaryReviewRows
@@ -125,9 +134,14 @@ export default function Approvals() {
                 (row.malay || '').toLowerCase().includes(q) ||
                 (row.chinese || '').toLowerCase().includes(q)
         }
-        return (row.en || '').toLowerCase().includes(q) ||
-            (row.my || '').toLowerCase().includes(q) ||
-            (row.zh || '').toLowerCase().includes(q) ||
+
+        // Search in all translations
+        const translationMatches = Object.values(row.translations || {}).some(t =>
+            (t.text || '').toLowerCase().includes(q)
+        )
+
+        return (row.en || row.source_text || '').toLowerCase().includes(q) ||
+            translationMatches ||
             (row.projectName || '').toLowerCase().includes(q)
     })
 
@@ -157,92 +171,117 @@ export default function Approvals() {
         }
     }
 
-    // Approval handlers
-    const handleApprove = (rowId) => {
-        setLocalApprovals(prev => ({ ...prev, [rowId]: 'approved' }))
+    // Approval handlers helper
+    const updateLocalStatus = (rowId, langCode, status) => {
+        setLocalApprovals(prev => ({
+            ...prev,
+            [rowId]: {
+                ...(prev[rowId] || {}),
+                [langCode]: status
+            }
+        }))
     }
 
-    const handleReject = (rowId) => {
-        setLocalApprovals(prev => ({ ...prev, [rowId]: 'rejected' }))
+    const updateLocalRemark = (rowId, langCode, remark) => {
+        setLocalRemarks(prev => ({
+            ...prev,
+            [rowId]: {
+                ...(prev[rowId] || {}),
+                [langCode]: remark
+            }
+        }))
     }
 
-    const handleCancel = (rowId) => {
-        setLocalApprovals(prev => {
-            const updated = { ...prev }
-            delete updated[rowId]
-            return updated
+    // Determine pending actions count
+    const getUpdatesCount = () => {
+        let count = 0
+        Object.values(localApprovals).forEach(langs => {
+            count += Object.keys(langs).length
         })
+        return count
     }
-
-    // Get counts
-    const approvedCount = Object.values(localApprovals).filter(v => v === 'approved').length
-    const rejectedCount = Object.values(localApprovals).filter(v => v === 'rejected').length
 
     // Save approved and rejected items
     const handleSaveItems = async () => {
-        const approvedIds = Object.entries(localApprovals)
-            .filter(([, status]) => status === 'approved')
-            .map(([id]) => id)
-
-        const rejectedIds = Object.entries(localApprovals)
-            .filter(([, status]) => status === 'rejected')
-            .map(([id]) => id)
-
-        if (approvedIds.length === 0 && rejectedIds.length === 0) {
+        const rowsToUpdate = Object.keys(localApprovals)
+        if (rowsToUpdate.length === 0) {
             toast.error("No items marked for approval or rejection")
             return
         }
 
         try {
             if (activeTab === "projects") {
-                // Process approved project rows
-                const approvedRows = activeRows.filter(r => approvedIds.includes(r.id))
                 const affectedProjectIds = new Set()
 
-                for (const row of approvedRows) {
+                for (const rowId of rowsToUpdate) {
+                    const row = activeRows.find(r => r.id === rowId)
+                    if (!row) continue
+
+                    const updates = localApprovals[rowId] || {}
+                    const remarks = localRemarks[rowId] || {}
+
+                    // Construct new translations object merging with existing
+                    const currentTranslations = row.translations || {}
+                    const newTranslations = { ...currentTranslations }
+
+                    // Also check if we need to update row-level status
+                    // If ALL languages are approved -> row approved
+                    // If ANY language is rejected -> row needs changes? Or stay in review?
+                    // Usually: 
+                    // - All Target Languages Approved -> Row Approved
+                    // - Some Approved, Some Rejected -> Row Status depends on policy. usually 'review' or 'changes'
+
+                    // Let's iterate updates
+                    Object.entries(updates).forEach(([lang, status]) => {
+                        newTranslations[lang] = {
+                            ...(newTranslations[lang] || { text: row[lang] || '' }),
+                            status: status, // 'approved' or 'changes' (if rejected)
+                            remark: remarks[lang] || newTranslations[lang]?.remark || ''
+                        }
+
+                        // Map 'rejected' UI state to 'changes' DB status
+                        if (status === 'rejected') {
+                            newTranslations[lang].status = 'changes'
+                        }
+                    })
+
+                    // Calculate new row level status
+                    const targets = row.targetLanguages || ['my', 'zh']
+                    const allApproved = targets.every(lang =>
+                        newTranslations[lang]?.status === 'approved' // Check NEW status
+                    )
+                    const anyChanges = targets.some(lang =>
+                        newTranslations[lang]?.status === 'changes'
+                    )
+
+                    let rowStatus = row.status
+                    if (allApproved) {
+                        rowStatus = 'approved'
+                    } else if (anyChanges) {
+                        rowStatus = 'changes' // Or can stay in review if some are still pending? 
+                        // If I reject one, the whole row needs attention? Yes usually.
+                    }
+
                     await updateProjectRow(row.projectId, row.id, {
-                        status: 'approved',
-                        approvedAt: new Date().toISOString(),
-                        remarks: localRemarks[row.id] || ''
+                        translations: newTranslations,
+                        status: rowStatus
                     })
                     affectedProjectIds.add(row.projectId)
                 }
 
-                // Recompute stats for affected projects (delayed to allow state to settle)
+                // Recompute stats
                 setTimeout(() => {
                     affectedProjectIds.forEach(pid => recomputeProjectStats(pid))
                 }, 500)
 
-                // Process rejected project rows - set status to 'changes' with remarks
-                for (const row of activeRows.filter(r => rejectedIds.includes(r.id))) {
-                    await updateProjectRow(row.projectId, row.id, {
-                        status: 'changes',
-                        remarks: localRemarks[row.id] || ''
-                    })
-                    affectedProjectIds.add(row.projectId)
-                }
             } else {
-                // Process approved glossary terms
-                for (const term of activeRows.filter(t => approvedIds.includes(t.id))) {
-                    await updateGlossaryTerm(term.id, {
-                        status: 'approved',
-                        remark: localRemarks[term.id] || ''
-                    })
-                }
-                // Process rejected glossary terms - set status to 'changes' with remarks
-                for (const term of activeRows.filter(t => rejectedIds.includes(t.id))) {
-                    await updateGlossaryTerm(term.id, {
-                        status: 'changes',
-                        remark: localRemarks[term.id] || ''
-                    })
-                }
+                // Glossary logic (Legacy single status for now)
+                // Or we could implement per-lang glossary approval later
+                // For now, approval applies to the term
+                toast.info("Glossary per-language approval coming soon")
             }
 
-            const messages = []
-            if (approvedIds.length > 0) messages.push(`${approvedIds.length} approved`)
-            if (rejectedIds.length > 0) messages.push(`${rejectedIds.length} need changes`)
-            toast.success(`Saved: ${messages.join(', ')}`)
-
+            toast.success("Changes saved successfully")
             setLocalApprovals({})
             setLocalRemarks({})
             setSelectedIds([])
@@ -252,375 +291,195 @@ export default function Approvals() {
         }
     }
 
-    // Check if any row has remarks (or local remarks) to decide whether to show the column
-    // Use activeRows (not filtered) to keep column structure stable across searches
-    const hasRemarks = useMemo(() => {
-        return activeRows.some(row => {
-            const remarkText = row.remarks || row.remark || ''
-            const localRemark = localRemarks[row.id] || ''
-            return String(remarkText).trim().length > 0 || String(localRemark).trim().length > 0
+    // Dynamic Columns Building
+    // 1. Identify all unique target languages present in the visible rows
+    const uniqueTargetLanguages = useMemo(() => {
+        const langs = new Set()
+        projectReviewRows.forEach(row => {
+            (row.targetLanguages || []).forEach(l => langs.add(l))
         })
-    }, [activeRows, localRemarks])
+        // Always ensure we have at least the ones from constant if empty?
+        if (langs.size === 0) {
+            langs.add('my')
+            langs.add('zh')
+        }
+        return Array.from(langs)
+    }, [projectReviewRows])
 
-    // Columns Configuration - widths adjusted to sum 100% so checkbox stays fixed at 52px
-    // Build language columns dynamically based on the project's configured languages
-    const buildProjectColumns = (row) => {
-        const project = projects.find(p => p.id === row.projectId)
-        const sourceLanguage = project?.sourceLanguage || 'en'
-        const targetLanguages = project?.targetLanguages || ['my', 'zh']
-
-        return [
-            {
-                header: "Page",
-                accessor: "pageName",
-                width: "18%",
-                render: (row) => (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 500, color: 'hsl(222, 47%, 11%)' }}>
-                            {row.pageName || 'Page 1'}
-                        </span>
-                        <span style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>
-                            {row.projectName}
-                        </span>
-                    </div>
-                )
-            },
-            // Source language column
-            {
-                header: getLanguageLabel(sourceLanguage),
-                accessor: sourceLanguage === 'en' ? 'en' : 'source_text',
-                width: "20%"
-            },
-            // Dynamic target language columns
-            ...targetLanguages.map(lang => ({
-                header: getLanguageLabel(lang),
-                accessor: lang,
-                width: `${Math.floor(36 / targetLanguages.length)}%`,
-                color: 'hsl(220, 9%, 46%)'
-            })),
-        ]
-    }
-
-    // Static columns for the Approvals table structure
-    const projectColumns = [
+    // Project Columns Definition
+    const projectColumns = useMemo(() => [
         {
-            header: "Page",
+            header: "Page / Context",
             accessor: "pageName",
-            width: "18%",
+            width: "15%",
             render: (row) => (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: 'hsl(222, 47%, 11%)' }}>
+                    <span className="font-medium text-slate-800 text-sm">
                         {row.pageName || 'Page 1'}
                     </span>
-                    <span style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>
+                    <span className="text-xs text-slate-500">
                         {row.projectName}
                     </span>
                 </div>
             )
         },
-        { header: "Source", accessor: "en", width: "20%" },
-        { header: "Bahasa Malaysia", accessor: "my", width: "18%", color: 'hsl(220, 9%, 46%)' },
-        { header: "Chinese", accessor: "zh", width: "16%", color: 'hsl(220, 9%, 46%)' },
-
-        // Remarks column - always present for stability
         {
-            header: "Remarks",
-            accessor: "remarks",
+            header: "Source (English)",
+            accessor: "en",
             width: "20%",
-            render: (row) => {
-                const localStatus = localApprovals[row.id]
-                const remarkValue = localRemarks[row.id] || ''
-
-                // Show input when rejected, or show existing remark
-                if (localStatus === 'rejected') {
-                    return (
-                        <input
-                            type="text"
-                            placeholder="Add feedback..."
-                            value={remarkValue}
-                            onChange={(e) => {
-                                e.stopPropagation()
-                                setLocalRemarks(prev => ({ ...prev, [row.id]: e.target.value }))
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full px-2 py-1 text-sm border border-rose-200 rounded bg-rose-50/30 focus:outline-none focus:ring-1 focus:ring-rose-300"
-                            style={{ fontSize: '12px' }}
-                        />
-                    )
-                }
-
-                // Show existing remark or placeholder
-                const remarkText = row.remarks ? String(row.remarks) : ''
-                return (
-                    <span className="text-xs text-zinc-400 italic">
-                        {remarkText.trim() || '—'}
-                    </span>
-                )
-            }
+            render: (row) => (
+                <div className="text-sm text-slate-700">
+                    {row.source_text || row.en || ''}
+                </div>
+            )
         },
-        {
-            header: "Action",
-            accessor: "actions",
-            width: "140px",
+        ...uniqueTargetLanguages.map(lang => ({
+            header: getLanguageLabel(lang),
+            accessor: lang,
+            width: `${Math.floor(65 / uniqueTargetLanguages.length)}%`, // Distribute remaining space
             render: (row) => {
-                const localStatus = localApprovals[row.id]
+                const translation = row.translations?.[lang] || { text: row[lang] || '' }
+                const localStatus = localApprovals[row.id]?.[lang]
+                const currentStatus = localStatus || translation.status || 'draft'
 
-                // If already approved/rejected, show icon with cancel
-                if (localStatus === 'approved') {
-                    return (
-                        <div className="flex items-center gap-2">
-                            <div style={{
-                                width: '24px', height: '24px', borderRadius: '4px',
-                                backgroundColor: '#10b981',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <Check style={{ width: '14px', height: '14px', color: 'white' }} />
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCancel(row.id) }}
-                                className="text-xs text-gray-400 hover:text-gray-600"
-                            >
-                                Undo
-                            </button>
-                        </div>
-                    )
+                // If this row doesn't target this language (unlikely if uniqueTargetLanguages is accurate)
+                // Check if row.targetLanguages includes this lang
+                if (row.targetLanguages && !row.targetLanguages.includes(lang)) {
+                    return <span className="text-slate-300 text-xs">—</span>
                 }
 
-                if (localStatus === 'rejected') {
-                    return (
-                        <div className="flex items-center gap-2">
-                            <div style={{
-                                width: '24px', height: '24px', borderRadius: '4px',
-                                backgroundColor: '#ef4444',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <X style={{ width: '14px', height: '14px', color: 'white' }} />
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCancel(row.id) }}
-                                className="text-xs text-gray-400 hover:text-gray-600"
-                            >
-                                Undo
-                            </button>
-                        </div>
-                    )
-                }
-
-                // Default: show Approve/Reject buttons
                 return (
-                    <div className="flex gap-1">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleApprove(row.id) }}
-                            className="px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        >
-                            Approve
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleReject(row.id) }}
-                            className="px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50 rounded border border-rose-200"
-                        >
-                            Reject
-                        </button>
+                    <div className="flex flex-col gap-2 group">
+                        <div className="text-sm text-slate-700 min-h-[20px]">
+                            {translation.text || <span className="text-slate-300 italic">Empty</span>}
+                        </div>
+
+                        {/* Status / Actions Bar */}
+                        <div className="flex items-center justify-between mt-1">
+                            {/* Status Indicator */}
+                            {(currentStatus === 'approved') && (
+                                <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-emerald-100">
+                                    <Check className="w-3 h-3" /> Approved
+                                </div>
+                            )}
+                            {(currentStatus === 'rejected' || currentStatus === 'changes') && (
+                                <div className="flex items-center gap-1.5 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-rose-100">
+                                    <X className="w-3 h-3" /> Changes
+                                </div>
+                            )}
+                            {(currentStatus !== 'approved' && currentStatus !== 'rejected' && currentStatus !== 'changes') && (
+                                <div className="text-[11px] text-slate-400 font-medium">
+                                    Pending
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-1 opacity-100 transition-opacity">
+                                {/* Always visible for easier access, or use opacity-0 group-hover:opacity-100 */}
+
+                                {localStatus ? (
+                                    <button
+                                        onClick={() => {
+                                            const newMap = { ...localApprovals[row.id] }
+                                            delete newMap[lang]
+                                            setLocalApprovals(prev => ({ ...prev, [row.id]: newMap }))
+                                            // Also clear remark?
+                                        }}
+                                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+                                        title="Undo"
+                                    >
+                                        <Undo2 className="w-4 h-4" />
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => updateLocalStatus(row.id, lang, 'approved')}
+                                            className="p-1 hover:bg-emerald-100 rounded text-slate-300 hover:text-emerald-600 transition-colors"
+                                            title="Approve"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => updateLocalStatus(row.id, lang, 'rejected')}
+                                            className="p-1 hover:bg-rose-100 rounded text-slate-300 hover:text-rose-600 transition-colors"
+                                            title="Request Changes"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Remark Input if Rejected */}
+                        {(currentStatus === 'rejected' || currentStatus === 'changes') && (
+                            <input
+                                type="text"
+                                placeholder="Reason for changes..."
+                                className="text-xs w-full border-b border-rose-200 bg-transparent py-1 focus:outline-none focus:border-rose-400 placeholder:text-rose-200 text-rose-700"
+                                value={localRemarks[row.id]?.[lang] || translation.remark || ''}
+                                onChange={(e) => updateLocalRemark(row.id, lang, e.target.value)}
+                            />
+                        )}
                     </div>
                 )
             }
-        }
-    ]
+        }))
+    ], [uniqueTargetLanguages, localApprovals, localRemarks, projectReviewRows]) // Add deps
 
+    // Legacy Glossary Columns (unchanged for now)
     const glossaryColumns = [
-        { header: "English", accessor: "en", width: "24%" },
-        { header: "Bahasa Malaysia", accessor: "my", width: "22%", color: 'hsl(220, 9%, 46%)' },
-        { header: "Chinese", accessor: "cn", width: "20%", color: 'hsl(220, 9%, 46%)' },
-        ...(hasRemarks ? [{
-            header: "Remarks",
-            accessor: "remarks",
-            width: "20%",
-            render: (row) => {
-                const localStatus = localApprovals[row.id]
-                const remarkValue = localRemarks[row.id] || ''
-
-                // Show input when rejected
-                if (localStatus === 'rejected') {
-                    return (
-                        <input
-                            type="text"
-                            placeholder="Add feedback..."
-                            value={remarkValue}
-                            onChange={(e) => {
-                                e.stopPropagation()
-                                setLocalRemarks(prev => ({ ...prev, [row.id]: e.target.value }))
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full px-2 py-1 text-sm border border-rose-200 rounded bg-rose-50/30 focus:outline-none focus:ring-1 focus:ring-rose-300"
-                            style={{ fontSize: '12px' }}
-                        />
-                    )
-                }
-
-                return (
-                    <span className="text-xs text-zinc-400 italic">
-                        {row.remarks || '—'}
-                    </span>
-                )
-            }
-        }] : []),
+        { header: "English", accessor: "en", width: "30%" },
+        { header: "Bahasa Malaysia", accessor: "my", width: "30%" },
+        { header: "Chinese", accessor: "cn", width: "30%" },
         {
-            header: "Action",
-            accessor: "actions",
-            width: "140px",
-            render: (row) => {
-                const localStatus = localApprovals[row.id]
-
-                // If already approved/rejected, show icon with undo
-                if (localStatus === 'approved') {
-                    return (
-                        <div className="flex items-center gap-2">
-                            <div style={{
-                                width: '24px', height: '24px', borderRadius: '4px',
-                                backgroundColor: '#10b981',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <Check style={{ width: '14px', height: '14px', color: 'white' }} />
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCancel(row.id) }}
-                                className="text-xs text-gray-400 hover:text-gray-600"
-                            >
-                                Undo
-                            </button>
-                        </div>
-                    )
-                }
-
-                if (localStatus === 'rejected') {
-                    return (
-                        <div className="flex items-center gap-2">
-                            <div style={{
-                                width: '24px', height: '24px', borderRadius: '4px',
-                                backgroundColor: '#ef4444',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <X style={{ width: '14px', height: '14px', color: 'white' }} />
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCancel(row.id) }}
-                                className="text-xs text-gray-400 hover:text-gray-600"
-                            >
-                                Undo
-                            </button>
-                        </div>
-                    )
-                }
-
-                // Default: show Approve/Reject buttons
-                return (
-                    <div className="flex gap-1">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleApprove(row.id) }}
-                            className="px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        >
-                            Approve
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleReject(row.id) }}
-                            className="px-2 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50 rounded border border-rose-200"
-                        >
-                            Reject
-                        </button>
-                    </div>
-                )
-            }
+            header: "Status",
+            accessor: "status",
+            render: () => <span className="text-xs text-slate-400">Legacy</span>
         }
     ]
 
     return (
         <div className="w-full pb-10">
             {/* Page Title */}
-            <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '4px', color: 'hsl(222, 47%, 11%)' }}>
+            <h1 className="text-2xl font-bold tracking-tight mb-1 text-slate-900">
                 Approvals
             </h1>
 
-            {/* Tabs - Projects | Glossary */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '12px 0', borderBottom: '1px solid hsl(220, 13%, 91%)' }}>
+            {/* Tabs */}
+            <div className="flex items-center gap-6 py-3 border-b border-slate-100">
                 <button
                     onClick={() => { setActiveTab("projects"); setSelectedIds([]); setLocalApprovals({}) }}
-                    style={{
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        color: activeTab === "projects" ? 'hsl(222, 47%, 11%)' : 'hsl(220, 9%, 46%)',
-                        paddingBottom: '12px',
-                        marginBottom: '-13px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === "projects" ? '2px solid #FF0084' : '2px solid transparent',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                    }}
+                    className={`flex items-center gap-1.5 pb-3 -mb-3.5 text-sm font-medium transition-colors ${activeTab === "projects"
+                            ? 'text-slate-900 border-b-2 border-[#FF0084]'
+                            : 'text-slate-500 border-b-2 border-transparent hover:text-slate-700'
+                        }`}
                 >
                     Projects
                     {projectReviewRows.length > 0 && (
-                        <span style={{
-                            backgroundColor: '#FF0084',
-                            color: 'white',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            padding: '2px 6px',
-                            borderRadius: '9999px',
-                            minWidth: '18px',
-                            textAlign: 'center'
-                        }}>
+                        <span className="bg-[#FF0084] text-white text-[10px] font-bold px-1.5 h-4 flex items-center justify-center rounded-full">
                             {projectReviewRows.length}
                         </span>
                     )}
                 </button>
                 <button
                     onClick={() => { setActiveTab("glossary"); setSelectedIds([]); setLocalApprovals({}) }}
-                    style={{
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        color: activeTab === "glossary" ? 'hsl(222, 47%, 11%)' : 'hsl(220, 9%, 46%)',
-                        paddingBottom: '12px',
-                        marginBottom: '-13px',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: activeTab === "glossary" ? '2px solid #FF0084' : '2px solid transparent',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                    }}
+                    className={`flex items-center gap-1.5 pb-3 -mb-3.5 text-sm font-medium transition-colors ${activeTab === "glossary"
+                            ? 'text-slate-900 border-b-2 border-[#FF0084]'
+                            : 'text-slate-500 border-b-2 border-transparent hover:text-slate-700'
+                        }`}
                 >
                     Glossary
-                    {glossaryReviewRows.length > 0 && (
-                        <span style={{
-                            backgroundColor: '#FF0084',
-                            color: 'white',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            padding: '2px 6px',
-                            borderRadius: '9999px',
-                            minWidth: '18px',
-                            textAlign: 'center'
-                        }}>
-                            {glossaryReviewRows.length}
-                        </span>
-                    )}
                 </button>
             </div>
 
-
             {/* Action Bar */}
             <div className="flex items-center justify-between mb-4 mt-6">
-                <div className="flex items-center gap-2">
-                    <span style={{ fontSize: '14px', color: 'hsl(220, 9%, 46%)' }}>
-                        {selectedIds.length > 0 ? `${selectedIds.length} item(s) selected` : `${filteredRows.length} items`}
-                    </span>
+                <div className="text-sm text-slate-500">
+                    {selectedIds.length > 0 ? `${selectedIds.length} item(s) selected` : `${filteredRows.length} items`}
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Search */}
                     <SearchInput
                         value={searchQuery}
                         onChange={setSearchQuery}
@@ -628,78 +487,19 @@ export default function Approvals() {
                         width="200px"
                     />
 
-                    {/* Bulk Approve - Only when items are selected */}
-                    {selectedIds.length > 0 && (
-                        <button
-                            onClick={() => {
-                                selectedIds.forEach(id => handleApprove(id))
-                            }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                height: '32px',
-                                padding: '0 14px',
-                                fontSize: '12px',
-                                fontWeight: 500,
-                                color: '#10b981',
-                                backgroundColor: 'transparent',
-                                border: '1px solid #10b981',
-                                borderRadius: '9999px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <Check style={{ width: '14px', height: '14px' }} /> Approve {selectedIds.length}
-                        </button>
-                    )}
-
-                    {/* Bulk Reject - Only when items are selected */}
-                    {selectedIds.length > 0 && (
-                        <button
-                            onClick={() => {
-                                selectedIds.forEach(id => handleReject(id))
-                            }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                height: '32px',
-                                padding: '0 14px',
-                                fontSize: '12px',
-                                fontWeight: 500,
-                                color: '#ef4444',
-                                backgroundColor: 'transparent',
-                                border: '1px solid #ef4444',
-                                borderRadius: '9999px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <X style={{ width: '14px', height: '14px' }} /> Reject {selectedIds.length}
-                        </button>
-                    )}
-
                     <PrimaryButton
                         style={{ height: '32px', fontSize: '12px', padding: '0 16px' }}
                         onClick={handleSaveItems}
-                        disabled={approvedCount === 0 && rejectedCount === 0}
+                        disabled={getUpdatesCount() === 0}
                     >
-                        <span style={{ fontSize: '14px' }}>✦</span> Save {(approvedCount + rejectedCount) > 0 ? `${approvedCount + rejectedCount} items` : 'items'}
+                        Save {getUpdatesCount() > 0 ? `${getUpdatesCount()} changes` : ''}
                     </PrimaryButton>
                 </div>
-
             </div>
 
-            {/* Reusable Data Table or Empty State */}
+            {/* Table */}
             {filteredRows.length === 0 ? (
-                <div style={{
-                    textAlign: 'center',
-                    padding: '48px 24px',
-                    color: 'hsl(220, 9%, 46%)',
-                    fontSize: '14px',
-                    border: '1px solid hsl(220, 13%, 91%)',
-                    borderRadius: '8px',
-                    backgroundColor: 'hsl(220, 14%, 96%)'
-                }}>
+                <div className="text-center py-12 px-6 border border-dashed border-slate-200 rounded-lg bg-slate-50 text-slate-400 text-sm">
                     No requests found.
                 </div>
             ) : (
@@ -712,7 +512,6 @@ export default function Approvals() {
                         onToggleSelectAll={toggleSelectAll}
                     />
 
-                    {/* Pagination */}
                     {totalItems > 0 && (
                         <Pagination
                             currentPage={currentPage}
@@ -724,8 +523,6 @@ export default function Approvals() {
                     )}
                 </>
             )}
-
-
         </div>
     )
 }

@@ -93,42 +93,49 @@ export class GeminiProvider extends BaseAIProvider {
         const sourceLangName = getLangName(sourceLang);
         const targetLangNames = targetLanguages.map(l => getLangName(l)).join(', ');
 
-        // Process Template
-        let instructions = template?.prompt || 'Translate accurately.';
+        // Process Template (no fallback - template must be provided)
+        if (!template?.prompt) {
+            throw new Error('MISSING_TEMPLATE: No prompt template provided');
+        }
+        let instructions = template.prompt;
         instructions = instructions.replace(/\{\{targetLanguage\}\}/gi, targetLangNames);
 
         // Build Glossary
         const glossarySection = this._buildGlossarySection(glossaryTerms, items);
 
-        return `
-You are a professional translator. Translate from ${sourceLangName} to: ${targetLangNames}.
+        return `# Translation Task
+
+## Role
+You are a professional translator.
+- Source Language: ${sourceLangName}
+- Target Languages: ${targetLangNames}
 
 ## Instructions
 ${instructions}
-
 ${glossarySection}
 
-## Input Data (JSON)
+## Input
 \`\`\`json
 ${JSON.stringify(items.map(i => ({ id: i.id, text: i.text, context: i.context })), null, 2)}
 \`\`\`
 
-## Required Output Format
-Return a JSON Array. Each object must have an "id" and a "translations" object containing the target languages.
-Example:
+## Output Requirements
+Return ONLY a valid JSON array with this exact structure:
+\`\`\`json
 [
   {
-    "id": "1",
+    "id": "row_id",
     "translations": {
-      "${targetLanguages[0]}": { "text": "Translated text..." },
-      "${targetLanguages[1] || 'other'}": { "text": "Translated text..." }
+      "${targetLanguages[0]}": { "text": "..." },
+      "${targetLanguages[1] || 'lang2'}": { "text": "..." }
     }
   }
 ]
+\`\`\`
 
-IMPORTANT:
-- Return ONLY valid JSON.
-- Ensure every target language is present in the "translations" object.
+**Rules:**
+- Return ONLY valid JSON (no markdown, no extra text)
+- Include ALL target languages in each translation object
 `;
     }
 

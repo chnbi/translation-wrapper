@@ -139,13 +139,19 @@ export default function ProjectView({ projectId }) {
         ? getPageRows(id, currentPageId)
         : legacyRows
 
+    // Helper to get translation text (from JSON or legacy field)
+    const getTranslationText = (row, langCode) => {
+        return row.translations?.[langCode]?.text || row[langCode] || ''
+    }
+
     // Apply search and status filters - search across source + target languages
     const rows = (allRows || []).filter(row => {
         if (!row) return false
         const searchLower = searchQuery.toLowerCase()
+        const sourceText = row.source_text || row.en || ''
         const matchesSearch = !searchQuery ||
-            (row.en || '').toLowerCase().includes(searchLower) ||
-            targetLanguages.some(lang => (row[lang] || '').toLowerCase().includes(searchLower))
+            sourceText.toLowerCase().includes(searchLower) ||
+            targetLanguages.some(lang => getTranslationText(row, lang).toLowerCase().includes(searchLower))
 
         // Status filter - if no selection, show all
         const matchesStatus = statusFilter.length === 0 || statusFilter.includes(row.status || 'draft')
@@ -330,12 +336,24 @@ export default function ProjectView({ projectId }) {
             setIsAddingRow(false)
             return
         }
-        // Build row with only valid PocketBase fields
+        // Build translations JSON structure
+        const translations = {}
+        targetLanguages.forEach(lang => {
+            translations[lang] = {
+                text: (newRowData[lang] || '').trim(),
+                status: 'draft'
+            }
+        })
+
+        // Build row with JSON translations AND legacy fields for compatibility
         const newRow = {
-            en: newRowData.en.trim(),
+            source_text: newRowData.en.trim(),
+            en: newRowData.en.trim(), // Legacy
             status: 'draft',
             promptId: 'default',
+            translations: translations,
         }
+        // Legacy field writes
         targetLanguages.forEach(lang => {
             newRow[lang] = (newRowData[lang] || '').trim()
         })
@@ -420,10 +438,23 @@ export default function ProjectView({ projectId }) {
         if (!editingRowId || !editingRowData) return
 
         try {
+            // Build translations JSON from edited data
+            const updatedTranslations = { ...(editingRowData.translations || {}) }
+            targetLanguages.forEach(lang => {
+                updatedTranslations[lang] = {
+                    ...(updatedTranslations[lang] || {}),
+                    text: editingRowData[lang] || '',
+                    // Keep existing status or default to draft
+                    status: updatedTranslations[lang]?.status || 'draft'
+                }
+            })
+
             await updateProjectRow(id, editingRowId, {
-                en: editingRowData.en,
-                my: editingRowData.my,
-                zh: editingRowData.zh,
+                source_text: editingRowData.en,
+                en: editingRowData.en, // Legacy field
+                translations: updatedTranslations,
+                // Also write legacy fields for compatibility
+                ...Object.fromEntries(targetLanguages.map(lang => [lang, editingRowData[lang] || '']))
             })
             toast.success('Row updated')
             setEditingRowId(null)
@@ -534,12 +565,13 @@ export default function ProjectView({ projectId }) {
             console.log('🔍 [DEBUG] Effective promptId:', effectivePromptId)
             console.log('🔍 [DEBUG] All templates:', templates.map(t => ({ id: t.id, name: t.name, isDefault: t.isDefault, status: t.status })))
 
-            // Always get the base default template (MANDATORY - never filtered out)
-            const baseDefaultTemplate = defaultTemplate ||
-                publishedTemplates[0] ||
-            {
-                name: 'Default',
-                prompt: 'Translate accurately while maintaining the original meaning and tone.'
+            // Get base default template (MANDATORY - no fallback)
+            const baseDefaultTemplate = defaultTemplate || publishedTemplates[0]
+            
+            if (!baseDefaultTemplate) {
+                toast.error("No default template found. Please create one in Prompt Library.")
+                setIsTranslating(false)
+                return
             }
 
             // Group rows by their promptId for separate translation batches
@@ -673,7 +705,7 @@ export default function ProjectView({ projectId }) {
                 )
             }
         },
-        // Dynamic target language columns
+        // Dynamic target language columns - reads from translations JSON or legacy field
         ...targetLanguages.map(langCode => ({
             header: LANGUAGES[langCode]?.label || langCode,
             accessor: langCode,
@@ -681,6 +713,7 @@ export default function ProjectView({ projectId }) {
             minWidth: langCode === 'my' ? "160px" : "140px",
             color: 'hsl(220, 9%, 46%)',
             render: row => {
+                // For editing, use flat data structure
                 if (row.id === editingRowId) {
                     return (
                         <Textarea
@@ -691,10 +724,12 @@ export default function ProjectView({ projectId }) {
                         />
                     )
                 }
+                // Read from translations JSON first, fallback to legacy field
+                const displayText = row.translations?.[langCode]?.text || row[langCode] || ''
                 return (
                     <div style={{ whiteSpace: 'pre-wrap' }}>
                         <GlossaryHighlighter
-                            text={row[langCode] || '—'}
+                            text={displayText || '—'}
                             language={langCode}
                             glossaryTerms={glossaryTerms}
                         />

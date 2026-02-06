@@ -4,6 +4,7 @@ import * as dbService from '@/api/pocketbase'
 import { logAction, AUDIT_ACTIONS } from '@/api/pocketbase'
 import { toast } from 'sonner'
 import { useAuth } from '@/App'
+import { LANGUAGES } from '@/lib/constants'
 
 /**
  * Manages project data loading and CRUD operations with PocketBase
@@ -197,7 +198,7 @@ export function useProjectData() {
                 if (row.id !== rowId) return row
 
                 // Logic: If editing content on Approved row, revert to Draft
-                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks'].includes(k))
+                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks', 'translations'].includes(k))
                 const isStatusChange = 'status' in updates
                 const isApprovedOrReview = ['approved', 'review', 'published'].includes(row.status)
 
@@ -227,7 +228,7 @@ export function useProjectData() {
 
                                 // Logic: If editing content (en/my/zh) on an Approved/Review row, revert to Draft
                                 // Unless the update itself explicitly sets the status (e.g. approval action)
-                                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks'].includes(k))
+                                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks', 'translations'].includes(k))
                                 const isStatusChange = 'status' in updates
                                 const isApprovedOrReview = ['approved', 'review', 'published'].includes(row.status)
 
@@ -453,14 +454,31 @@ export function useProjectData() {
                         const page = await dbService.addProjectPage(createdProjectId, { name: sheetName })
                         if (index === 0) firstPageId = page.id
 
-                        // Add Rows - only include valid fields for PocketBase
-                        const validFields = ['en', 'my', 'zh', 'status', 'promptId', 'context']
+                        // Add Rows - map import columns to schema
                         const cleanRows = rows.map((row) => {
-                            const cleaned = { status: 'draft' }
-                            validFields.forEach(field => {
-                                if (row[field] !== undefined) cleaned[field] = row[field]
+                            const translations = {}
+                            // Detect standard languages from constants
+                            Object.keys(LANGUAGES).forEach(code => {
+                                if (code === 'en') return // Source
+                                if (row[code]) {
+                                    translations[code] = {
+                                        text: row[code],
+                                        status: 'draft',
+                                        remark: ''
+                                    }
+                                }
                             })
-                            return cleaned
+
+                            // Map source text
+                            const source_text = row.en || row.source_text || ""
+
+                            return {
+                                source_text,
+                                translations,
+                                status: 'draft',
+                                context: row.context || "",
+                                promptId: row.promptId || ""
+                            }
                         })
                         const createdRows = await dbService.addPageRows(createdProjectId, page.id, cleanRows)
 
