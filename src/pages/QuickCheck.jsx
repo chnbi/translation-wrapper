@@ -25,15 +25,32 @@ function escapeRegex(str) {
 function findGlossaryMatches(text, glossaryTerms, languageCode) {
     if (!text || !glossaryTerms || glossaryTerms.length === 0) return []
 
-    const fieldMap = { en: 'en', my: 'my', zh: 'cn' }
-    const field = fieldMap[languageCode]
-    if (!field) return []
+    // Map language codes to possible field names (check multiple)
+    const fieldMap = {
+        en: ['en', 'english'],
+        my: ['my', 'malay'],
+        zh: ['cn', 'chinese', 'zh']
+    }
+    const fields = fieldMap[languageCode]
+    if (!fields) return []
 
     const matches = []
+    const notFound = []
 
     for (const term of glossaryTerms) {
-        const termValue = term[field]?.trim()
-        if (!termValue) continue
+        // Try multiple field names
+        let termValue = null
+        for (const field of fields) {
+            if (term[field]?.trim()) {
+                termValue = term[field].trim()
+                break
+            }
+        }
+        if (!termValue) {
+            // Track terms missing target language translation
+            if (term.en) notFound.push({ en: term.en, reason: 'No target translation' })
+            continue
+        }
 
         const pattern = languageCode === 'zh'
             ? escapeRegex(termValue)
@@ -42,13 +59,20 @@ function findGlossaryMatches(text, glossaryTerms, languageCode) {
         const regex = new RegExp(pattern, languageCode === 'zh' ? 'g' : 'gi')
 
         let match
+        let hasMatch = false
         while ((match = regex.exec(text)) !== null) {
+            hasMatch = true
             matches.push({
                 start: match.index,
                 end: match.index + match[0].length,
                 term: term,
                 matchedText: match[0]
             })
+        }
+
+        // Track terms that have translation but not found in text
+        if (!hasMatch && term.en) {
+            notFound.push({ en: term.en, searched: termValue, reason: 'Not in translated text' })
         }
     }
 
@@ -64,11 +88,17 @@ function findGlossaryMatches(text, glossaryTerms, languageCode) {
         }
     }
 
+    // Debug log
+    console.log(`[QuickCheck] ${languageCode.toUpperCase()}: Found ${filtered.length} matches:`, filtered.map(m => m.matchedText))
+    if (notFound.length > 0 && languageCode === 'zh') {
+        console.log(`[QuickCheck] ZH terms NOT matched:`, notFound)
+    }
+
     return filtered
 }
 
-// Render text with highlighted glossary matches
-function HighlightedText({ text, matches }) {
+// Render text with highlighted glossary matches (Linked Hover)
+function HighlightedText({ text, matches, hoveredTermId, onHoverTerm }) {
     if (!text) return null
     if (!matches || matches.length === 0) {
         return <span>{text}</span>
@@ -86,14 +116,19 @@ function HighlightedText({ text, matches }) {
             )
         }
 
+        const isHovered = hoveredTermId === match.term.id
+
         parts.push(
             <span
                 key={`match-${match.start}`}
-                className="font-semibold cursor-help hover:bg-pink-100 rounded-sm transition-colors px-0.5"
+                className="font-semibold cursor-default transition-colors px-0.5 rounded-sm"
+                onMouseEnter={() => onHoverTerm && onHoverTerm(match.term.id)}
+                onMouseLeave={() => onHoverTerm && onHoverTerm(null)}
                 style={{
-                    color: '#FF0084'
+                    color: '#FF0084',
+                    backgroundColor: isHovered ? 'hsl(329, 100%, 94%)' : 'transparent',
+                    transition: 'background-color 0.15s'
                 }}
-                title={`Glossary: ${match.term.en} = ${match.term.my} / ${match.term.cn}`}
             >
                 {match.matchedText}
             </span>
@@ -123,6 +158,8 @@ export default function QuickCheck() {
     const [translatedText, setTranslatedText] = useState('')
     const [isTranslating, setIsTranslating] = useState(false)
     const [hasTranslated, setHasTranslated] = useState(false)
+    const [isEditing, setIsEditing] = useState(true)
+    const [hoveredTermId, setHoveredTermId] = useState(null)
 
     // Get default template
     const defaultTemplate = useMemo(() => {
@@ -169,6 +206,7 @@ export default function QuickCheck() {
             const result = results[0]
             setTranslatedText(result?.[targetLanguage] || '')
             setHasTranslated(true)
+            setIsEditing(false)
 
             if (result?.status === 'error') {
                 toast.error('Translation failed')
@@ -200,6 +238,14 @@ export default function QuickCheck() {
         color: TABLE_STYLES.headerText
     }
 
+    // Scroll sync handler
+    const handleScroll = (e) => {
+        const overlay = document.getElementById('highlight-overlay')
+        if (overlay) {
+            overlay.scrollTop = e.target.scrollTop
+        }
+    }
+
     return (
         <div className="p-6">
             {/* Header */}
@@ -229,26 +275,42 @@ export default function QuickCheck() {
                             </Select>
                         </div>
 
-                        {/* Text area */}
-                        <div className="relative min-h-[280px]">
-                            {/* Highlighted overlay */}
-                            {hasTranslated && sourceMatches.length > 0 && (
-                                <div className="absolute inset-0 p-4 pointer-events-none text-sm leading-relaxed whitespace-pre-wrap">
-                                    <HighlightedText text={sourceText} matches={sourceMatches} />
+                        {/* Text area container */}
+                        <div className="relative h-[280px]">
+                            {/* Highlighted View (View Mode) */}
+                            {hasTranslated && sourceMatches.length > 0 && !isEditing ? (
+                                <div
+                                    onClick={() => setIsEditing(true)}
+                                    className="w-full h-full p-4 overflow-auto text-sm leading-relaxed whitespace-pre-wrap font-sans cursor-text hover:bg-slate-50 transition-colors"
+                                    style={{
+                                        color: 'inherit'
+                                    }}
+                                    title="Click to edit"
+                                >
+                                    <HighlightedText
+                                        text={sourceText}
+                                        matches={sourceMatches}
+                                        hoveredTermId={hoveredTermId}
+                                        onHoverTerm={setHoveredTermId}
+                                    />
                                 </div>
+                            ) : (
+                                /* Editable textarea (Edit Mode) */
+                                <textarea
+                                    value={sourceText}
+                                    onChange={(e) => {
+                                        handleSourceChange(e)
+                                        setIsEditing(true)
+                                    }}
+                                    autoFocus={isEditing && hasTranslated}
+                                    placeholder="Enter text to translate..."
+                                    className="w-full h-full p-4 bg-transparent resize-none border-none focus:ring-0 focus:outline-none text-sm leading-relaxed font-sans"
+                                    style={{
+                                        color: 'inherit',
+                                        caretColor: 'hsl(222, 47%, 11%)'
+                                    }}
+                                />
                             )}
-
-                            {/* Editable textarea */}
-                            <textarea
-                                value={sourceText}
-                                onChange={handleSourceChange}
-                                placeholder="Enter text to translate..."
-                                className="w-full h-full min-h-[280px] p-4 bg-transparent resize-none border-none focus:ring-0 focus:outline-none text-sm leading-relaxed"
-                                style={{
-                                    color: hasTranslated && sourceMatches.length > 0 ? 'transparent' : 'inherit',
-                                    caretColor: 'hsl(222, 47%, 11%)'
-                                }}
-                            />
                         </div>
                     </div>
 
@@ -280,7 +342,12 @@ export default function QuickCheck() {
                                 </div>
                             ) : translatedText ? (
                                 <div className="whitespace-pre-wrap">
-                                    <HighlightedText text={translatedText} matches={targetMatches} />
+                                    <HighlightedText
+                                        text={translatedText}
+                                        matches={targetMatches}
+                                        hoveredTermId={hoveredTermId}
+                                        onHoverTerm={setHoveredTermId}
+                                    />
                                 </div>
                             ) : (
                                 <span className="text-muted-foreground">

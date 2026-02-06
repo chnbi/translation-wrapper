@@ -19,13 +19,21 @@ export const getModel = () => {
     return import.meta.env.VITE_GEMINI_MODEL || "gemini-2.0-flash";
 };
 
+import { LANGUAGES, getLanguageLabel } from "@/lib/constants";
+
 /**
- * Language code to name mapping
+ * Language code to name mapping (derived from central config)
  */
-const LANGUAGE_NAMES = {
-    'en': 'English',
-    'my': 'Bahasa Malaysia (Malay)',
-    'zh': 'Simplified Chinese (中文)'
+const LANGUAGE_NAMES = Object.entries(LANGUAGES).reduce((acc, [code, info]) => {
+    acc[code] = info.label;
+    return acc;
+}, {});
+
+// Specific language names for Prompt Engineering (LLMs follow these better)
+const PROMPT_LANGUAGE_NAMES = {
+    ...LANGUAGE_NAMES,
+    my: 'Malay',
+    zh: 'Simplified Chinese'
 };
 
 /**
@@ -49,9 +57,10 @@ function buildGlossaryPrompt(glossaryTerms, targetLanguages, sourceTexts = []) {
 
     // Filter glossary to only terms that appear in the source text
     const relevantTerms = glossaryTerms.filter(term => {
-        if (!term.english) return false;
+        const enTerm = term.english || term.en;
+        if (!enTerm) return false;
         // Check if the English term appears in the combined source text
-        return combinedSourceText.includes(term.english.toLowerCase());
+        return combinedSourceText.includes(enTerm.toLowerCase());
     });
 
     if (relevantTerms.length === 0) {
@@ -63,11 +72,16 @@ function buildGlossaryPrompt(glossaryTerms, targetLanguages, sourceTexts = []) {
     const lines = relevantTerms.map(term => {
         const translations = targetLanguages.map(lang => {
             const langName = lang === 'my' ? 'Malay' : 'Chinese';
-            const value = lang === 'my' ? term.malay : term.chinese;
+            // Handle various field names
+            let value;
+            if (lang === 'my') value = term.malay || term.my;
+            else if (lang === 'zh') value = term.chinese || term.zh || term.cn;
+
             return value ? `${langName}: "${value}"` : null;
         }).filter(Boolean).join(', ');
 
-        return `| ${term.english} | ${translations} |`;
+        const enTerm = term.english || term.en;
+        return `| ${enTerm} | ${translations} |`;
     });
 
     return `
@@ -93,7 +107,7 @@ function processTemplate(template, targetLanguages) {
         return 'Translate accurately while maintaining the original meaning and tone.';
     }
 
-    const targetLangStr = targetLanguages.map(l => LANGUAGE_NAMES[l] || l).join(' and ');
+    const targetLangStr = targetLanguages.map(l => PROMPT_LANGUAGE_NAMES[l] || l).join(' and ');
 
     // Replace common template variables
     let processed = template.prompt
@@ -194,8 +208,8 @@ export async function translateBatch(rows, template, options = {}) {
  * Build the translation prompt with template, glossary, and context
  */
 function buildTranslationPrompt(sourceTexts, template, targetLanguages, glossaryTerms = [], sourceLanguage = 'en') {
-    const targetLangStr = targetLanguages.map(l => LANGUAGE_NAMES[l] || l).join(' and ');
-    const sourceLangStr = LANGUAGE_NAMES[sourceLanguage] || 'English';
+    const targetLangStr = targetLanguages.map(l => PROMPT_LANGUAGE_NAMES[l] || l).join(' and ');
+    const sourceLangStr = PROMPT_LANGUAGE_NAMES[sourceLanguage] || 'English';
 
     // Process template with variable substitution
     const styleInstruction = processTemplate(template, targetLanguages);
@@ -206,7 +220,7 @@ function buildTranslationPrompt(sourceTexts, template, targetLanguages, glossary
 
     // Build language-specific style instructions to prevent selective application
     const languageSpecificStyles = targetLanguages.map(langCode => {
-        const langName = LANGUAGE_NAMES[langCode] || langCode;
+        const langName = PROMPT_LANGUAGE_NAMES[langCode] || langCode;
         return `### For ${langName} translations specifically:
 ${styleInstruction}`;
     }).join('\n\n');
@@ -242,7 +256,7 @@ Use these exact keys: ${targetLanguages.map(l => `"${l}"`).join(', ')}
 Example output format:
 \`\`\`json
 [
-  {"id": 1, ${targetLanguages.map(l => `"${l}": "${LANGUAGE_NAMES[l] || l} translation"`).join(', ')}},
+  {"id": 1, ${targetLanguages.map(l => `"${l}": "${PROMPT_LANGUAGE_NAMES[l] || l} translation"`).join(', ')}},
   {"id": 2, ${targetLanguages.map(l => `"${l}": "..."`).join(', ')}}
 ]
 \`\`\`

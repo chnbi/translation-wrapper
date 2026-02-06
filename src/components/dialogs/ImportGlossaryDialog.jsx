@@ -230,7 +230,10 @@ export default function ImportGlossaryDialog({ open, onOpenChange, onImport }) {
                     {/* Area 2: Column Mapping (Only if files exist) */}
                     {files.length > 0 && (
                         <div className="space-y-3 pt-2 border-t">
-                            <Label>Map Columns</Label>
+                            <div className="space-y-1">
+                                <Label>Map Columns</Label>
+                                <p className="text-xs text-muted-foreground">Select which columns from your file match the required fields below.</p>
+                            </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-medium text-muted-foreground">English (Required)</label>

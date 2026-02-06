@@ -27,3 +27,4 @@ src/archive/
 # Documentation and text files (not needed in git)
 *.md
 *.txt
+documentation/

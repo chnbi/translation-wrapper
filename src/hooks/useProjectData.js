@@ -193,9 +193,21 @@ export function useProjectData() {
         // Update legacy flat rows
         setProjectRows(prev => ({
             ...prev,
-            [projectId]: (prev[projectId] || []).map(row =>
-                row.id === rowId ? { ...row, ...updates } : row
-            )
+            [projectId]: (prev[projectId] || []).map(row => {
+                if (row.id !== rowId) return row
+
+                // Logic: If editing content on Approved row, revert to Draft
+                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks'].includes(k))
+                const isStatusChange = 'status' in updates
+                const isApprovedOrReview = ['approved', 'review', 'published'].includes(row.status)
+
+                let finalUpdates = { ...updates }
+                if (isContentEdit && !isStatusChange && isApprovedOrReview) {
+                    finalUpdates.status = 'draft'
+                }
+
+                return { ...row, ...finalUpdates }
+            })
         }))
 
         // Also update page-specific rows
@@ -210,9 +222,23 @@ export function useProjectData() {
                         ...projData,
                         pageRows: {
                             ...projData.pageRows,
-                            [pageIdForRow]: (projData.pageRows[pageIdForRow] || []).map(row =>
-                                row.id === rowId ? { ...row, ...updates } : row
-                            )
+                            [pageIdForRow]: (projData.pageRows[pageIdForRow] || []).map(row => {
+                                if (row.id !== rowId) return row
+
+                                // Logic: If editing content (en/my/zh) on an Approved/Review row, revert to Draft
+                                // Unless the update itself explicitly sets the status (e.g. approval action)
+                                const isContentEdit = Object.keys(updates).some(k => ['en', 'my', 'zh', 'remark', 'remarks'].includes(k))
+                                const isStatusChange = 'status' in updates
+                                const isApprovedOrReview = ['approved', 'review', 'published'].includes(row.status)
+
+                                let finalUpdates = { ...updates }
+                                if (isContentEdit && !isStatusChange && isApprovedOrReview) {
+                                    finalUpdates.status = 'draft'
+                                    // Also toast to inform user? Maybe too noisy.
+                                }
+
+                                return { ...row, ...finalUpdates }
+                            })
                         }
                     }
                 }

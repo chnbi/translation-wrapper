@@ -1,27 +1,25 @@
 // Shared UI Components - Concise & Clean
-// All colors are in tailwind.config.js - use Tailwind classes only
+// All colors are defined in constants.js - use COLORS or Tailwind classes
 
 import React from 'react'
 import { Button } from "./button"
+import { COLORS } from '@/lib/constants'
 
 // ============================================
 // CONSTANTS
 // ============================================
 
 export const PROJECT_THEMES = [
-    { id: 'pink', color: '#FFE5EC', border: '#FFB6C1', iconColor: '#EC4899' },
+    { id: 'pink', color: COLORS.pink.lightest, border: COLORS.pink.light, iconColor: COLORS.pink.fuchsia },
     { id: 'orange', color: '#FFF0E5', border: '#FFDAB9', iconColor: '#F97316' },
-    { id: 'yellow', color: '#FFFDE7', border: '#FFF59D', iconColor: '#CA8A04' },
-    { id: 'mint', color: '#E5F9F6', border: '#A7F3D0', iconColor: '#059669' },
+    { id: 'yellow', color: COLORS.accents.jasmine + '20', border: COLORS.accents.jasmine, iconColor: '#CA8A04' },
+    { id: 'mint', color: '#E5F9F6', border: '#A7F3D0', iconColor: COLORS.states.positive.DEFAULT },
     { id: 'cyan', color: '#E5F6FF', border: '#BAE6FD', iconColor: '#0891B2' },
     { id: 'purple', color: '#F3E5FF', border: '#D8B4FE', iconColor: '#7C3AED' },
 ]
 
-// Legacy COLORS export for backwards compatibility (use Tailwind instead)
-export const COLORS = {
-    primary: '#FF0084',
-    blueMedium: '#5174FF',
-}
+// Re-export COLORS for backward compatibility
+export { COLORS }
 
 // ============================================
 // FORM COMPONENTS

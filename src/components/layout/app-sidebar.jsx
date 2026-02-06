@@ -47,10 +47,11 @@ import {
 } from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog"
 import { useAuth } from "@/App"
+import { WordFlowLogo } from "@/components/ui/WordFlowLogo"
 
 // WordFlow Logo Component - ChatGPT-style behavior
 // Logo navigates home, shows sidebar icon + "Open sidebar" tooltip when collapsed and hovered
-function WordFlowLogo() {
+function SidebarBrand() {
   const { state, toggleSidebar } = useSidebar()
   const isCollapsed = state === "collapsed"
   const [isHovered, setIsHovered] = React.useState(false)
@@ -80,35 +81,8 @@ function WordFlowLogo() {
   )
 
   // WordFlow Flower Logo - sized to match feature icons
-  const FlowerLogo = () => (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M16 4C16 4 20 8 20 12C20 16 16 20 16 20C16 20 12 16 12 12C12 8 16 4 16 4Z" fill="url(#petal1)" />
-      <path d="M28 16C28 16 24 20 20 20C16 20 12 16 12 16C12 16 16 12 20 12C24 12 28 16 28 16Z" fill="url(#petal2)" />
-      <path d="M16 28C16 28 12 24 12 20C12 16 16 12 16 12C16 12 20 16 20 20C20 24 16 28 16 28Z" fill="url(#petal3)" />
-      <path d="M4 16C4 16 8 12 12 12C16 12 20 16 20 16C20 16 16 20 12 20C8 20 4 16 4 16Z" fill="url(#petal4)" />
-      <circle cx="16" cy="16" r="3" fill="#FF6B9D" />
-      <defs>
-        <linearGradient id="petal1" x1="16" y1="4" x2="16" y2="20" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
-        </linearGradient>
-        <linearGradient id="petal2" x1="28" y1="16" x2="12" y2="16" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
-        </linearGradient>
-        <linearGradient id="petal3" x1="16" y1="28" x2="16" y2="12" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
-        </linearGradient>
-        <linearGradient id="petal4" x1="4" y1="16" x2="20" y2="16" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF8FB1" /><stop offset="1" stopColor="#FF6B9D" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
+  // Replaced by shared component
+  const FlowerLogo = () => <WordFlowLogo width={28} height={28} />
 
   return (
     <div
@@ -552,8 +526,8 @@ export function AppSidebar({ ...props }) {
     ...(isManager ? [{ title: "Approvals", url: "#approvals", icon: Edit3, badge: pendingApprovals > 0 ? pendingApprovals : undefined }] : []),
     // Only show My Submissions to Editors
     ...(!isManager ? [{ title: "My Submissions", url: "#submissions", icon: CheckSquare, badge: pendingApprovals > 0 ? pendingApprovals : undefined }] : []),
-    { title: "Image Translation", url: "#image-translate", icon: Languages },
     { title: "Quick Check", url: "#quick-check", icon: Sparkles },
+    { title: "Image Translation", url: "#image-translate", icon: Languages },
     { title: "Glossary", url: "#glossary", icon: BookOpen, badge: glossaryNewApprovals > 0 ? glossaryNewApprovals : undefined },
     { title: "Prompt Library", url: "#prompt", icon: Library },
   ]
@@ -569,7 +543,7 @@ export function AppSidebar({ ...props }) {
       <SidebarHeader className="bg-sidebar text-sidebar-foreground pt-5 pb-4 px-4 transition-all">
         {/* WordFlow Logo and Toggle */}
         <div className="flex items-center justify-between">
-          <WordFlowLogo />
+          <SidebarBrand />
           {/* Toggle button - hidden when collapsed, icon size matches feature icons */}
           <SidebarTrigger className="h-8 w-8 text-sidebar-foreground/60 hover:text-primary hover:bg-sidebar-accent rounded-md transition-colors group-data-[collapsible=icon]:hidden [&>svg]:h-[20px] [&>svg]:w-[20px]" />
         </div>
@@ -626,27 +600,33 @@ export function AppSidebar({ ...props }) {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <a href="#settings">
-                          <Key className="h-3.5 w-3.5" />
-                          <span>API Keys</span>
-                        </a>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <a href="#settings">
-                          <Users className="h-3.5 w-3.5" />
-                          <span>User Roles</span>
-                        </a>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
+                    {/* Manager-only items */}
+                    {isManager && (
+                      <>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <a href="#settings">
+                              <Key className="h-3.5 w-3.5" />
+                              <span>API Keys</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild>
+                            <a href="#users">
+                              <Users className="h-3.5 w-3.5" />
+                              <span>Users</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </>
+                    )}
+                    {/* All users can see Notifications */}
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild>
                         <a href="#settings">
                           <Bell className="h-3.5 w-3.5" />
-                          <span>Notification</span>
+                          <span>Notifications</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>

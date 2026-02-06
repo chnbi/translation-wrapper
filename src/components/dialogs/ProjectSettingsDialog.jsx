@@ -3,10 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { AVAILABLE_TARGET_LANGUAGES } from "@/lib/constants"
+import { LANGUAGES } from "@/lib/constants"
 import { useProjects } from "@/context/ProjectContext"
 import { toast } from "sonner"
 import { Globe } from "lucide-react"
+
+// Derive available targets from registry (exclude en)
+const AVAILABLE_TARGETS = Object.values(LANGUAGES).filter(l => l.code !== 'en')
 
 export function ProjectSettingsDialog({ open, onOpenChange, project }) {
     const { updateProject } = useProjects()
@@ -20,8 +23,6 @@ export function ProjectSettingsDialog({ open, onOpenChange, project }) {
     const handleToggleLanguage = (langCode) => {
         setSelectedLanguages(prev => {
             if (prev.includes(langCode)) {
-                // Prevent removing if it's the last one? Or allow it?
-                // For now allow removing but maybe warn if it deletes data (it won't delete data, just hide columns)
                 return prev.filter(l => l !== langCode)
             } else {
                 return [...prev, langCode]
@@ -67,7 +68,7 @@ export function ProjectSettingsDialog({ open, onOpenChange, project }) {
                     </p>
 
                     <div className="space-y-3">
-                        {AVAILABLE_TARGET_LANGUAGES.map((lang) => (
+                        {AVAILABLE_TARGETS.map((lang) => (
                             <div key={lang.code} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={`lang-${lang.code}`}

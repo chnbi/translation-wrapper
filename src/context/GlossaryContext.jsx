@@ -115,10 +115,20 @@ export function GlossaryProvider({ children }) {
     const updateTerm = useCallback(async (id, updates) => {
         const existingTerm = terms.find(t => t.id === id)
         try {
-            await dbService.updateGlossaryTerm(id, updates)
+            // Logic: If editing content on Approved term, revert to Draft
+            const isContentEdit = Object.keys(updates).some(k => ['en', 'english', 'my', 'malay', 'cn', 'chinese', 'category', 'remark'].includes(k))
+            const isStatusChange = 'status' in updates
+            const isApproved = existingTerm.status === 'approved' || existingTerm.status === 'published'
+
+            let finalUpdates = { ...updates }
+            if (isContentEdit && !isStatusChange && isApproved) {
+                finalUpdates.status = 'draft'
+            }
+
+            await dbService.updateGlossaryTerm(id, finalUpdates)
             const updatedTerm = {
                 ...existingTerm,
-                ...updates,
+                ...finalUpdates,
                 dateModified: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             }
             setTerms(prev => prev.map(t => t.id === id ? updatedTerm : t))
@@ -131,7 +141,7 @@ export function GlossaryProvider({ children }) {
             console.error("Failed to update term", error)
             toast.error("Failed to update term")
         }
-    }, [])
+    }, [terms, user])
 
     // Delete a term (with Firestore sync)
     const deleteTerm = useCallback(async (id) => {

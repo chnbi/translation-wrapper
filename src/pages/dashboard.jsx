@@ -5,6 +5,7 @@ import { useProjects } from "@/context/ProjectContext"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { parseExcelFile } from "@/lib/excel"
+import { PageHeader, SearchInput } from "@/components/ui/common"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -181,7 +182,7 @@ export default function Dashboard() {
                         <Button
                             onClick={() => fileInputRef.current?.click()}
                             variant="outline"
-                            className="rounded-full px-4 h-9 bg-card hover:bg-muted text-foreground border-border"
+                            className="rounded-full px-4 h-9 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-sm font-medium border border-zinc-200 dark:border-zinc-700 shadow-sm transition-all"
                         >
                             <Upload className="w-4 h-4 mr-2" /> Import file
                         </Button>

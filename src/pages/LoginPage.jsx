@@ -207,106 +207,108 @@ export default function LoginPage() {
                     </PrimaryButton>
                 </form>
 
-                {/* Test Accounts Info */}
-                <div style={{
-                    marginTop: '24px',
-                    padding: '16px',
-                    backgroundColor: 'hsl(220, 14%, 98%)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    color: 'hsl(220, 9%, 46%)'
-                }}>
-                    <p style={{ fontWeight: 600, marginBottom: '12px', color: 'hsl(222, 47%, 11%)' }}>
-                        Test Accounts:
-                    </p>
-
-                    {/* Manager Account with Autofill */}
+                {/* Test Accounts Info - ONLY IN DEV */}
+                {import.meta.env.DEV && (
                     <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '8px'
+                        marginTop: '24px',
+                        padding: '16px',
+                        backgroundColor: 'hsl(220, 14%, 98%)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        color: 'hsl(220, 9%, 46%)'
                     }}>
-                        <div>
-                            <p style={{ marginBottom: '2px' }}>
-                                <strong>Manager:</strong> manager@test.com
-                            </p>
-                            <p style={{ fontSize: '11px', opacity: 0.7 }}>password123</p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEmail('manager@test.com')
-                                setPassword('password123')
-                            }}
-                            style={{
-                                padding: '6px 12px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                background: 'linear-gradient(135deg, #FF0084 0%, #FF4D9C 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'transform 0.15s, box-shadow 0.15s',
-                                boxShadow: '0 2px 4px rgba(255, 0, 132, 0.2)'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.target.style.transform = 'translateY(-1px)'
-                                e.target.style.boxShadow = '0 4px 8px rgba(255, 0, 132, 0.3)'
-                            }}
-                            onMouseLeave={(e) => {
-                                e.target.style.transform = 'translateY(0)'
-                                e.target.style.boxShadow = '0 2px 4px rgba(255, 0, 132, 0.2)'
-                            }}
-                        >
-                            Autofill
-                        </button>
-                    </div>
+                        <p style={{ fontWeight: 600, marginBottom: '12px', color: 'hsl(222, 47%, 11%)' }}>
+                            Test Accounts (DEV ONLY):
+                        </p>
 
-                    {/* Editor Account with Autofill */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }}>
-                        <div>
-                            <p style={{ marginBottom: '2px' }}>
-                                <strong>Editor:</strong> editor@test.com
-                            </p>
-                            <p style={{ fontSize: '11px', opacity: 0.7 }}>password123</p>
+                        {/* Manager Account with Autofill */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '8px'
+                        }}>
+                            <div>
+                                <p style={{ marginBottom: '2px' }}>
+                                    <strong>Manager:</strong> manager@test.com
+                                </p>
+                                <p style={{ fontSize: '11px', opacity: 0.7 }}>password123</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setEmail('manager@test.com')
+                                    setPassword('password123')
+                                }}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    background: 'linear-gradient(135deg, #FF0084 0%, #FF4D9C 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.15s, box-shadow 0.15s',
+                                    boxShadow: '0 2px 4px rgba(255, 0, 132, 0.2)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.target.style.transform = 'translateY(-1px)'
+                                    e.target.style.boxShadow = '0 4px 8px rgba(255, 0, 132, 0.3)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.transform = 'translateY(0)'
+                                    e.target.style.boxShadow = '0 2px 4px rgba(255, 0, 132, 0.2)'
+                                }}
+                            >
+                                Autofill
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEmail('editor@test.com')
-                                setPassword('password123')
-                            }}
-                            style={{
-                                padding: '6px 12px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                background: 'linear-gradient(135deg, #FF0084 0%, #FF4D9C 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'transform 0.15s, box-shadow 0.15s',
-                                boxShadow: '0 2px 4px rgba(255, 0, 132, 0.2)'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.target.style.transform = 'translateY(-1px)'
-                                e.target.style.boxShadow = '0 4px 8px rgba(255, 0, 132, 0.3)'
-                            }}
-                            onMouseLeave={(e) => {
-                                e.target.style.transform = 'translateY(0)'
-                                e.target.style.boxShadow = '0 2px 4px rgba(255, 0, 132, 0.2)'
-                            }}
-                        >
-                            Autofill
-                        </button>
+
+                        {/* Editor Account with Autofill */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <div>
+                                <p style={{ marginBottom: '2px' }}>
+                                    <strong>Editor:</strong> editor@test.com
+                                </p>
+                                <p style={{ fontSize: '11px', opacity: 0.7 }}>password123</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setEmail('editor@test.com')
+                                    setPassword('password123')
+                                }}
+                                style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    background: 'linear-gradient(135deg, #FF0084 0%, #FF4D9C 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.15s, box-shadow 0.15s',
+                                    boxShadow: '0 2px 4px rgba(255, 0, 132, 0.2)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.target.style.transform = 'translateY(-1px)'
+                                    e.target.style.boxShadow = '0 4px 8px rgba(255, 0, 132, 0.3)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.transform = 'translateY(0)'
+                                    e.target.style.boxShadow = '0 2px 4px rgba(255, 0, 132, 0.2)'
+                                }}
+                            >
+                                Autofill
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     )

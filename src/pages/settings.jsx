@@ -7,7 +7,7 @@ import ManageCategoriesDialog from "@/components/dialogs/ManageCategoriesDialog"
 import UserManagementDialog from "@/components/dialogs/UserManagementDialog"
 import ChangePasswordDialog from "@/components/dialogs/ChangePasswordDialog"
 import { toast } from "sonner"
-import { translateBatch } from "@/api/gemini"
+
 import AuditLogsSection from "@/components/AuditLogsSection"
 
 const adminSections = [
@@ -85,15 +85,15 @@ export default function Settings() {
                     onClick={async () => {
                         const toastId = toast.loading("Testing connection...")
                         try {
-                            // Test translation of "Hello"
-                            const res = await translateBatch(
-                                [{ id: 'test', en: 'Hello' }],
-                                { name: 'Test', prompt: 'Translate directly.' }
-                            )
-                            if (res && res.length > 0 && res[0].my) {
-                                toast.success("Connected! API is responding.", { id: toastId })
+                            // Test generic AI connection
+                            const { getAI } = await import('@/api/ai')
+                            const ai = getAI()
+                            const res = await ai.testConnection()
+
+                            if (res.success) {
+                                toast.success(`Connected! Response: ${res.message}`, { id: toastId })
                             } else {
-                                throw new Error("Invalid response")
+                                throw new Error(res.message || "Connection failed")
                             }
                         } catch (err) {
                             console.error(err)

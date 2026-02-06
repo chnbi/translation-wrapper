@@ -25,7 +25,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
     }, [])
 
     // Perform translation using Gemini API
-    const performTranslation = useCallback(async (rows, template, retryCount = 0) => {
+    const performTranslation = useCallback(async (rows, template, targetLanguages = ['my', 'zh'], retryCount = 0) => {
         const MAX_RETRIES = 3
         const BASE_BACKOFF_MS = 5000
 
@@ -37,15 +37,40 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
 
         try {
             const glossaryTerms = fetchGlossaryFn ? await fetchGlossaryFn() : []
-            const { translateBatch } = await import('@/api/gemini')
-            const results = await translateBatch(rows, template, {
-                targetLanguages: ['my', 'zh'],
-                glossaryTerms
+            // Use new AI Service
+            const { getAI } = await import('@/api/ai')
+            const ai = getAI()
+
+            // Map rows to generic input format
+            // Assuming rows are full objects, we extract text and context
+            const inputs = rows.map(r => ({
+                id: r.id,
+                text: r.en || r.source_text || '',
+                context: r.context
+            }))
+
+            // We need target languages. 
+            // In strict V2, this should come from Project config, but this hook is generic.
+            // We'll fallback to ['my', 'zh'] if not provided in args (hook signature update might be needed later, keeping 'my','zh' for now as safe default based on previous code)
+
+            const results = await ai.generateBatch(inputs, {
+                template,
+                targetLanguages, // Now dynamic
+                glossaryTerms: glossaryTerms.map(t => ({
+                    english: t.en || t.english,
+                    translations: {
+                        ms: t.my || t.malay,
+                        zh: t.cn || t.zh || t.chinese
+                    }
+                }))
             })
 
+            // Format results for row update (V2 Schema)
             return results.map(r => ({
-                ...r,
+                id: r.id,
+                translations: r.translations,
                 templateUsed: template?.name || 'Default',
+                translatedAt: new Date().toISOString()
             }))
 
         } catch (error) {
@@ -64,7 +89,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
     }, [isApiConfigured, fetchGlossaryFn])
 
     // Add rows to translation queue
-    const queueTranslation = useCallback((projectId, rows, template) => {
+    const queueTranslation = useCallback((projectId, rows, template, targetLanguages = ['my', 'zh']) => {
         if (rows.length === 0) return
 
         // Mark rows as "queued"
@@ -78,6 +103,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
                 projectId,
                 rows: rows.slice(i, i + BATCH_SIZE),
                 template,
+                targetLanguages,
             })
         }
 
@@ -130,7 +156,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
             updateRowsFn(batch.projectId, translatingUpdates)
 
             try {
-                const results = await performTranslation(batch.rows, batch.template)
+                const results = await performTranslation(batch.rows, batch.template, batch.targetLanguages)
 
                 if (isCancelledRef.current) {
                     console.log('🛑 [Translation] Cancelled during batch')

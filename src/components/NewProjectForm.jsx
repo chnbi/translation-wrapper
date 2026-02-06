@@ -11,11 +11,10 @@ import {
     IconButton,
     COLORS,
 } from "@/components/ui/shared"
-
-const AVAILABLE_LANGUAGES = [
-    { id: 'my', label: 'Bahasa Malaysia' },
-    { id: 'zh', label: 'Simplified Chinese' },
-]
+import { LANGUAGES } from "@/lib/constants"
+// Derive settings locally since global constants were removed for dynamic support
+const AVAILABLE_TARGET_LANGUAGES = Object.values(LANGUAGES).filter(l => l.code !== 'en')
+const DEFAULT_TARGET_LANGUAGES = ['my', 'zh']
 
 // Pastel color options for project theme
 const PROJECT_THEMES = [
@@ -30,7 +29,7 @@ const PROJECT_THEMES = [
 export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
     const [projectName, setProjectName] = useState('')
     const [description, setDescription] = useState('')
-    const [selectedLanguages, setSelectedLanguages] = useState(['my'])
+    const [selectedLanguages, setSelectedLanguages] = useState(DEFAULT_TARGET_LANGUAGES)
     const [selectedTheme, setSelectedTheme] = useState(PROJECT_THEMES[0].id)
 
     if (!isOpen) return null
@@ -49,7 +48,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
         // Reset form
         setProjectName('')
         setDescription('')
-        setSelectedLanguages(['my'])
+        setSelectedLanguages(DEFAULT_TARGET_LANGUAGES)
         setSelectedTheme(PROJECT_THEMES[0].id)
     }
 
@@ -119,7 +118,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit }) {
                             flexWrap: 'wrap',
                             gap: '8px',
                         }}>
-                            {AVAILABLE_LANGUAGES.map(lang => {
+                            {AVAILABLE_TARGET_LANGUAGES.map(lang => {
                                 const isSelected = selectedLanguages.includes(lang.id)
                                 return (
                                     <button

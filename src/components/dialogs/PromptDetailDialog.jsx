@@ -15,7 +15,6 @@ import {
 
 // Available tag options
 const TAG_OPTIONS = [
-    'Default',
     'Banner/Slogan',
     'CTA/Buttons',
     'Legal',
@@ -46,9 +45,9 @@ function TagsDropdown({ selectedTags, onChange, disabled }) {
         if (disabled) return
         if (selectedTags.includes(tag)) {
             const newTags = selectedTags.filter(t => t !== tag)
-            onChange(newTags.length ? newTags : ['Default'])
+            onChange(newTags)
         } else {
-            // Remove 'Default' if adding a new tag
+            // Remove 'Default' if it exists (legacy cleanup)
             const newTags = selectedTags.filter(t => t !== 'Default')
             onChange([...newTags, tag])
         }
@@ -58,7 +57,7 @@ function TagsDropdown({ selectedTags, onChange, disabled }) {
         e.stopPropagation()
         if (disabled) return
         const newTags = selectedTags.filter(t => t !== tag)
-        onChange(newTags.length ? newTags : ['Default'])
+        onChange(newTags)
     }
 
     return (
@@ -189,7 +188,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
     const [formData, setFormData] = useState({
         name: '',
         prompt: '',
-        tags: ['Default'],
+        tags: [],
         status: 'draft'
     })
 
@@ -199,7 +198,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                 setFormData({
                     name: initialData.name || '',
                     prompt: initialData.prompt || '',
-                    tags: initialData.tags?.length ? initialData.tags : ['Default'],
+                    tags: initialData.tags?.length ? initialData.tags : [],
                     status: initialData.status || 'draft'
                 })
                 setIsEditing(false) // Start in view mode for existing prompts
@@ -207,7 +206,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                 setFormData({
                     name: '',
                     prompt: '',
-                    tags: ['Default'],
+                    tags: [],
                     status: 'draft'
                 })
                 setIsEditing(true) // Start in edit mode for new prompts
@@ -264,7 +263,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                             {/* Status Dropdown */}
                             <select
                                 value={formData.status || 'draft'}
-                                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                                disabled={true}
                                 style={{
                                     padding: '10px 36px 10px 16px',
                                     fontSize: '14px',
@@ -273,13 +272,14 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                                     border: '1px solid hsl(220, 13%, 91%)',
                                     backgroundColor: 'hsl(220, 14%, 98%)',
                                     color: 'hsl(222, 47%, 11%)',
-                                    cursor: 'pointer',
+                                    cursor: 'default',
                                     appearance: 'none',
                                     outline: 'none',
                                     minWidth: '100px',
                                     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 12px center'
+                                    backgroundPosition: 'right 12px center',
+                                    opacity: 1 // Keep opacity full for readability
                                 }}
                             >
                                 <option value="draft">Draft</option>
@@ -318,7 +318,9 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                             lineHeight: '1.6',
                             color: 'hsl(222, 47%, 11%)',
                             whiteSpace: 'pre-wrap',
-                            minHeight: '120px'
+                            minHeight: '120px',
+                            maxHeight: '60vh',
+                            overflowY: 'auto'
                         }}>
                             {formData.prompt || 'No content'}
                         </div>
@@ -415,6 +417,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                             placeholder="E.g. Banner Slogan"
                             value={formData.name}
                             onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                            style={{ backgroundColor: 'white' }}
                         />
                     </FormField>
 
@@ -427,7 +430,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                                 onChange={e => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
                                 style={{
                                     width: '100%',
-                                    minHeight: '120px',
+                                    minHeight: '320px',
                                     padding: '12px 16px',
                                     paddingRight: '40px',
                                     fontSize: '14px',
@@ -456,8 +459,8 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                     {/* Tags Section - Clickable multi-select dropdown */}
                     <FormField label="Tags">
                         <TagsDropdown
-                            selectedTags={formData.tags || ['Default']}
-                            onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags.length ? newTags : ['Default'] }))}
+                            selectedTags={formData.tags || []}
+                            onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
                         />
                     </FormField>
 

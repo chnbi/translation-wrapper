@@ -5,10 +5,12 @@ import { Search, Check, X } from "lucide-react"
 import { useProjects } from "@/context/ProjectContext"
 import { useGlossary } from "@/context/GlossaryContext"
 import { COLORS, PrimaryButton } from "@/components/ui/shared"
+import { SearchInput } from "@/components/ui/common"
 import { DataTable } from "@/components/ui/DataTable"
 import Pagination from "@/components/Pagination"
 import { toast } from "sonner"
 import { useAuth } from "@/App"
+import { LANGUAGES, getLanguageLabel } from "@/lib/constants"
 
 export default function Approvals() {
     const { isManager } = useAuth()
@@ -261,6 +263,45 @@ export default function Approvals() {
     }, [activeRows, localRemarks])
 
     // Columns Configuration - widths adjusted to sum 100% so checkbox stays fixed at 52px
+    // Build language columns dynamically based on the project's configured languages
+    const buildProjectColumns = (row) => {
+        const project = projects.find(p => p.id === row.projectId)
+        const sourceLanguage = project?.sourceLanguage || 'en'
+        const targetLanguages = project?.targetLanguages || ['my', 'zh']
+
+        return [
+            {
+                header: "Page",
+                accessor: "pageName",
+                width: "18%",
+                render: (row) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 500, color: 'hsl(222, 47%, 11%)' }}>
+                            {row.pageName || 'Page 1'}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>
+                            {row.projectName}
+                        </span>
+                    </div>
+                )
+            },
+            // Source language column
+            {
+                header: getLanguageLabel(sourceLanguage),
+                accessor: sourceLanguage === 'en' ? 'en' : 'source_text',
+                width: "20%"
+            },
+            // Dynamic target language columns
+            ...targetLanguages.map(lang => ({
+                header: getLanguageLabel(lang),
+                accessor: lang,
+                width: `${Math.floor(36 / targetLanguages.length)}%`,
+                color: 'hsl(220, 9%, 46%)'
+            })),
+        ]
+    }
+
+    // Static columns for the Approvals table structure
     const projectColumns = [
         {
             header: "Page",
@@ -277,9 +318,10 @@ export default function Approvals() {
                 </div>
             )
         },
-        { header: "English", accessor: "en", width: "20%" },
+        { header: "Source", accessor: "en", width: "20%" },
         { header: "Bahasa Malaysia", accessor: "my", width: "18%", color: 'hsl(220, 9%, 46%)' },
         { header: "Chinese", accessor: "zh", width: "16%", color: 'hsl(220, 9%, 46%)' },
+
         // Remarks column - always present for stability
         {
             header: "Remarks",
@@ -579,25 +621,12 @@ export default function Approvals() {
 
                 <div className="flex items-center gap-2">
                     {/* Search */}
-                    <div style={{ position: 'relative' }}>
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{
-                                paddingLeft: '32px',
-                                paddingRight: '12px',
-                                height: '32px',
-                                borderRadius: '9999px',
-                                border: '1px solid hsl(220, 13%, 91%)',
-                                fontSize: '13px',
-                                width: '200px',
-                                outline: 'none'
-                            }}
-                        />
-                        <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', color: 'hsl(220, 9%, 46%)' }} />
-                    </div>
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Search..."
+                        width="200px"
+                    />
 
                     {/* Bulk Approve - Only when items are selected */}
                     {selectedIds.length > 0 && (

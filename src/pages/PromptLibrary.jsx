@@ -6,7 +6,7 @@ import { PromptDetailDialog, ConfirmDialog } from "@/components/dialogs"
 import { usePrompts } from "@/context/PromptContext"
 import { useAuth, ACTIONS } from "@/App"
 import { COLORS, PrimaryButton, SecondaryButton, PillButton, IconButton } from "@/components/ui/shared"
-import { PageHeader, CategoryFilterTabs, SearchInput } from "@/components/ui/common"
+import { SearchInput } from "@/components/ui/common"
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { getStatusConfig } from "@/lib/constants"
 import { toast } from "sonner"
@@ -140,7 +140,7 @@ export default function PromptLibrary() {
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
                     color: 'hsl(222, 47%, 11%)',
-                    marginBottom: '4px'
+                    marginBottom: '0'
                 }}>
                     Prompt Library
                 </h1>
@@ -195,34 +195,12 @@ export default function PromptLibrary() {
                 {/* Right side - Search and buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {/* Search */}
-                    <div style={{ position: 'relative', width: '200px' }}>
-                        <Search style={{
-                            position: 'absolute',
-                            left: '12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: '16px',
-                            height: '16px',
-                            color: 'hsl(220, 9%, 46%)'
-                        }} />
-                        <input
-                            type="text"
-                            placeholder="Search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{
-                                width: '100%',
-                                height: '36px',
-                                paddingLeft: '36px',
-                                paddingRight: '12px',
-                                fontSize: '14px',
-                                borderRadius: '12px',
-                                border: '1px solid hsl(220, 13%, 91%)',
-                                outline: 'none',
-                                backgroundColor: 'white'
-                            }}
-                        />
-                    </div>
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Search"
+                        width="200px"
+                    />
 
                     {/* Filters */}
                     <StatusFilterDropdown
@@ -235,7 +213,7 @@ export default function PromptLibrary() {
 
                     {/* New Template Button */}
                     {/* Create Button - Managers Only */}
-                    {canDo(ACTIONS.MANAGE_PROMPTS) && (
+                    {canDo(ACTIONS.CREATE_PROMPT) && (
                         <PrimaryButton onClick={handleCreate} style={{ height: '36px', fontSize: '14px' }}>
                             <CirclePlus style={{ width: '14px', height: '14px' }} />
                             New template
@@ -269,12 +247,9 @@ export default function PromptLibrary() {
                 {sortedTemplates.map(template => {
                     const status = getStatusConfig(template.status)
                     const { role, goal, constraints } = parsePromptContent(template.prompt)
-                    // Fix: Handle undefined/null category properly
-                    const categoryLabel = template.isDefault
-                        ? 'Default'
-                        : (!template.category || template.category === 'default'
-                            ? 'Default'
-                            : template.category.charAt(0).toUpperCase() + template.category.slice(1))
+                    // Fix: Use tags if available, fallback to category, then Default
+                    const firstTag = template.tags && template.tags.length > 0 ? template.tags[0] : (template.category || 'Default')
+                    const categoryLabel = template.isDefault ? 'Default' : firstTag
                     const isDefault = template.isDefault === true
 
                     return (
@@ -365,7 +340,7 @@ export default function PromptLibrary() {
                                                 <Copy className="w-4 h-4" />
                                                 Copy
                                             </button>
-                                            {canDo(ACTIONS.MANAGE_PROMPTS) && (
+                                            {canDo(ACTIONS.EDIT_PROMPT) && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
@@ -377,7 +352,7 @@ export default function PromptLibrary() {
                                                     Edit
                                                 </button>
                                             )}
-                                            {canDo(ACTIONS.MANAGE_PROMPTS) && !isDefault && (
+                                            {canDo(ACTIONS.DELETE_PROMPT) && !isDefault && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()

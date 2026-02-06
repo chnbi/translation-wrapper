@@ -32,7 +32,7 @@ import Pagination from "@/components/Pagination"
 import { PromptCategoryDropdown } from "@/components/ui/PromptCategoryDropdown"
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { DuplicateGlossaryDialog } from "@/components/dialogs/DuplicateGlossaryDialog"
-import { getStatusConfig } from "@/lib/constants"
+import { getStatusConfig, LANGUAGES } from "@/lib/constants"
 import { useApprovalNotifications } from "@/hooks/useApprovalNotifications"
 
 
@@ -43,7 +43,7 @@ export default function Glossary() {
     const { terms, addTerm, addTerms, updateTerm, deleteTerm, deleteTerms, categories: dynamicCategories } = useGlossary()
     const { templates } = usePrompts()
     const [searchQuery, setSearchQuery] = useState("")
-    const [activeCategory, setActiveCategory] = useState("All")
+    const [activeCategory, setActiveCategory] = useState('All')
     const [selectedIds, setSelectedIds] = useState([])
     const [sortField, setSortField] = useState("dateModified")
     const [sortDirection, setSortDirection] = useState("desc")
@@ -203,8 +203,9 @@ export default function Glossary() {
             // Status filter - if no selection, show all
             const matchesStatus = statusFilter.length === 0 || statusFilter.includes(term.status || 'draft')
 
-            if (activeCategory === "All") return matchesSearch && matchesStatus
-            return matchesSearch && matchesStatus && term.category === activeCategory
+            const matchesCategory = activeCategory === 'All' || term.category === activeCategory
+
+            return matchesSearch && matchesStatus && matchesCategory
         })
 
     const sortedTerms = [...filteredTerms].sort((a, b) => {
@@ -516,12 +517,18 @@ export default function Glossary() {
         }
     }
 
+    // Check if any visible term has a remark
+    const hasRemarks = filteredTerms.some(t => {
+        const r = t.remark || t.remarks
+        return r && String(r).trim().length > 0
+    })
+
     // Column Definitions for DataTable - STABLE structure (no conditional columns)
     // All columns always present to prevent React reconciliation issues
     const columns = [
-        { header: "English", accessor: "en", width: "22%", sortable: true },
-        { header: "Bahasa Malaysia", accessor: "my", width: "20%" },
-        { header: "Chinese", accessor: "cn", width: "15%" },
+        { header: LANGUAGES.en.label, accessor: "en", width: "22%", sortable: true },
+        { header: LANGUAGES.my.label, accessor: "my", width: "20%" },
+        { header: LANGUAGES.zh.label, accessor: "cn", width: "15%" }, // Note: Glossary uses 'cn' field
         {
             header: "Status",
             accessor: "status",
@@ -550,7 +557,7 @@ export default function Glossary() {
                 )
             }
         },
-        {
+        ...(hasRemarks ? [{
             header: "Remarks",
             accessor: "remark",
             width: "15%",
@@ -574,7 +581,7 @@ export default function Glossary() {
                     </div>
                 )
             }
-        },
+        }] : []),
         {
             header: "Category",
             accessor: "category",
@@ -672,40 +679,57 @@ export default function Glossary() {
                     Glossary
                 </h1>
 
+                {/* Category Filter Tags */}
+                <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    marginTop: '16px',
+                    marginBottom: '16px',
+                    overflowX: 'auto',
+                    paddingBottom: '4px'
+                }}>
+                    {['All', ...new Set([
+                        'General',
+                        ...dynamicCategories.map(c => c.name || c),
+                        ...(terms || []).map(t => t.category).filter(Boolean)
+                    ])].filter(c => c).map(category => (
+                        <button
+                            key={category}
+                            onClick={() => setActiveCategory(category)}
+                            style={{
+                                padding: '8px 16px',
+                                borderRadius: '9999px',
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                border: 'none',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: activeCategory === category ? '#FF0084' : 'hsl(220, 14%, 96%)',
+                                color: activeCategory === category ? 'white' : 'hsl(220, 9%, 46%)',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            {category}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Action Bar */}
-                <div className="flex items-center justify-between py-4">
+                <div className="flex items-center justify-between pb-4">
                     <span className="text-sm text-muted-foreground">
                         {selectedIds.length > 0 ? `${selectedIds.length} row(s) selected` : `${filteredTerms.length} row(s)`}
                     </span>
 
                     <div className="flex items-center gap-2">
                         {/* Search */}
-                        <div className="relative">
-                            <Input
-                                type="text"
-                                placeholder="Search"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="h-8 w-[140px] pl-8 pr-3 text-sm rounded-xl bg-background border-border focus-visible:ring-1 focus-visible:ring-primary"
-                            />
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
+                        <SearchInput
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                            placeholder="Search"
+                            width="200px" // Matched Prompt Library EXACTLY
+                        />
 
-                        {/* Category Filter - using tabs like Prompt Library */}
-                        <div className="flex bg-muted p-1 rounded-lg border border-border">
-                            {['All', ...dynamicCategories.map(c => c.name || c)].map(category => (
-                                <button
-                                    key={category}
-                                    onClick={() => setActiveCategory(category)}
-                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${activeCategory === category
-                                        ? 'bg-background text-foreground shadow-sm border border-border'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                                        }`}
-                                >
-                                    {category}
-                                </button>
-                            ))}
-                        </div>
+
 
                         {/* Filter - only show if there are terms AND no selection */}
                         {hasTerms && !hasSelection && (

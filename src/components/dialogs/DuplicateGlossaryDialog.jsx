@@ -35,10 +35,15 @@ export function DuplicateGlossaryDialog({ isOpen, onClose, duplicates = [], onRe
     }
 
     const toggleSelectAll = () => {
-        if (selectedIds.size === duplicates.length) {
+        // Get all unique existing IDs from duplicates
+        const allDuplicateIds = new Set(duplicates.map(d => d.existing.id))
+
+        // If all are selected (size match), deselect all
+        if (selectedIds.size === allDuplicateIds.size) {
             setSelectedIds(new Set())
         } else {
-            setSelectedIds(new Set(duplicates.map(d => d.existing.id)))
+            // Otherwise select all unique IDs
+            setSelectedIds(allDuplicateIds)
         }
     }
 
@@ -52,7 +57,9 @@ export function DuplicateGlossaryDialog({ isOpen, onClose, duplicates = [], onRe
         onClose()
     }
 
-    const isAllSelected = selectedIds.size === duplicates.length
+    // Check if all unique IDs are selected
+    const uniqueDuplicateIds = new Set(duplicates.map(d => d.existing.id))
+    const isAllSelected = selectedIds.size > 0 && selectedIds.size === uniqueDuplicateIds.size
 
     return (
         <ModalOverlay onClose={onClose}>
@@ -129,16 +136,16 @@ export function DuplicateGlossaryDialog({ isOpen, onClose, duplicates = [], onRe
                                 flex: 1,
                                 padding: '12px',
                                 borderRadius: '12px',
-                                border: action === 'ignore' ? '2px solid hsl(340, 82%, 59%)' : '1px solid hsl(220, 13%, 91%)',
-                                backgroundColor: action === 'ignore' ? 'hsl(340, 82%, 59%, 0.05)' : 'white',
+                                border: action === 'ignore' ? '2px solid #EC4899' : '1px solid hsl(220, 13%, 91%)',
+                                backgroundColor: action === 'ignore' ? '#FDF2F8' : 'white',
                                 cursor: 'pointer',
                                 textAlign: 'left',
                             }}
                         >
-                            <div style={{ fontSize: '14px', fontWeight: 500, color: 'hsl(222, 47%, 11%)' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 500, color: action === 'ignore' ? '#BE185D' : 'hsl(222, 47%, 11%)' }}>
                                 Ignore new entries
                             </div>
-                            <div style={{ fontSize: '12px', color: 'hsl(220, 9%, 46%)' }}>
+                            <div style={{ fontSize: '12px', color: action === 'ignore' ? '#DB2777' : 'hsl(220, 9%, 46%)' }}>
                                 Keep existing entries unchanged
                             </div>
                         </button>
@@ -172,7 +179,7 @@ export function DuplicateGlossaryDialog({ isOpen, onClose, duplicates = [], onRe
                             )}
                         </button>
                         <span style={{ fontSize: '13px', fontWeight: 500, color: 'hsl(220, 9%, 46%)' }}>
-                            Select All ({selectedIds.size}/{duplicates.length})
+                            Select All ({duplicates.filter(d => selectedIds.has(d.existing.id)).length}/{duplicates.length})
                         </span>
                     </div>
 

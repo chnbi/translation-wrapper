@@ -1,8 +1,9 @@
-
 import { useState, useRef, useEffect } from "react"
 import { FileSpreadsheet, Download, Square, CheckSquare, Loader2, X, Upload, Plus, Filter, Check, Search, Send, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { PageHeader, SearchInput } from "@/components/ui/common"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { COLORS, PillButton, TableActionButton, PrimaryButton } from "@/components/ui/shared"
 import { useProjects } from "@/context/ProjectContext"
 import { usePrompts } from "@/context/PromptContext"
@@ -11,7 +12,7 @@ import { useApprovalNotifications } from "@/hooks/useApprovalNotifications"
 import { useAuth } from "@/App"
 import * as XLSX from "xlsx"
 import { parseExcelFile } from "@/lib/excel"
-import { translateBatch } from "@/api/gemini/text"
+import { getAI } from "@/api/ai"
 import { toast } from "sonner"
 import { DataTable, TABLE_STYLES } from "@/components/ui/DataTable"
 import { PromptCategoryDropdown } from "@/components/ui/PromptCategoryDropdown"
@@ -46,6 +47,8 @@ export default function ProjectView({ projectId }) {
         selectAllRows,
         deselectAllRows,
         deleteRows,
+        renameProjectPage,
+        updateProject,
         isLoading,
     } = useProjects()
 
@@ -66,10 +69,13 @@ export default function ProjectView({ projectId }) {
     const [deleteConfirm, setDeleteConfirm] = useState(null) // { type: 'bulk' | 'single', data: any }
     const [duplicateConfirm, setDuplicateConfirm] = useState(null) // { row: object, duplicate: object }
     const [editingRowId, setEditingRowId] = useState(null) // Row being edited inline
+    const [editingRowData, setEditingRowData] = useState(null) // Data for row being edited
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage, setItemsPerPage] = useState(25)
+
+
 
     // Prompt Selection State
     const [selectedPromptId, setSelectedPromptId] = useState(null)
@@ -94,6 +100,11 @@ export default function ProjectView({ projectId }) {
     const targetLanguages = project?.targetLanguages || ['my', 'zh'] // Get early for use in filters
     const pages = getProjectPages(id)
     const currentPageId = getSelectedPageId(id)
+
+    // Title is now static (read-only) - derived from page or project
+    const currentTitle = currentPageId
+        ? pages.find(p => p.id === currentPageId)?.name || project?.name || ''
+        : project?.name || ''
 
     // Sync page selection from URL
     useEffect(() => {
@@ -394,6 +405,44 @@ export default function ProjectView({ projectId }) {
         return prompt?.name || null
     }
 
+    // Edit Row Handlers
+    const handleStartEdit = (row) => {
+        setEditingRowId(row.id)
+        setEditingRowData({ ...row })
+    }
+
+    const handleCancelEdit = () => {
+        setEditingRowId(null)
+        setEditingRowData(null)
+    }
+
+    const handleSaveEdit = async () => {
+        if (!editingRowId || !editingRowData) return
+
+        try {
+            await updateProjectRow(id, editingRowId, {
+                en: editingRowData.en,
+                my: editingRowData.my,
+                zh: editingRowData.zh,
+            })
+            toast.success('Row updated')
+            setEditingRowId(null)
+            setEditingRowData(null)
+        } catch (error) {
+            console.error('Update failed:', error)
+            toast.error('Failed to update row')
+        }
+    }
+
+    const handleEditKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSaveEdit()
+        } else if (e.key === 'Escape') {
+            handleCancelEdit()
+        }
+    }
+
     // Send selected rows for review
     // Send rows for review
     const handleSendForReview = async () => {
@@ -414,6 +463,8 @@ export default function ProjectView({ projectId }) {
             toast.error('No eligible rows to send for review')
             return
         }
+
+
 
         let successCount = 0
         for (const row of rowsToSend) {
@@ -532,30 +583,40 @@ export default function ProjectView({ projectId }) {
                 console.log(`📝 [Translate] Group "${promptKey}" using template: ${templateToUse.name}`)
 
                 // Call translation API for this group - use project's target languages
-                const results = await translateBatch(
-                    groupRows.map(row => ({ id: row.id, en: row.en })),
-                    templateToUse,
+                const ai = getAI();
+                const results = await ai.generateBatch(
+                    groupRows.map(row => ({ id: row.id, text: row.en || row.source_text || '', context: row.context })),
                     {
+                        template: templateToUse,
                         targetLanguages: targetLanguages,
                         glossaryTerms: glossaryTerms.map(t => ({
-                            english: t.english,
-                            malay: t.malay,
-                            chinese: t.chinese
+                            english: t.en || t.english,
+                            translations: {
+                                ms: t.my || t.malay,
+                                zh: t.cn || t.zh || t.chinese
+                            }
                         }))
                     }
                 )
 
                 // Update rows with translations - dynamically handle target languages
                 for (const result of results) {
-                    if (result.status !== 'error') {
-                        // Build update object with only the target languages
-                        const updates = { translatedAt: new Date().toISOString() }
-                        targetLanguages.forEach(lang => {
-                            if (result[lang]) updates[lang] = result[lang]
-                        })
-                        await updateProjectRow(id, result.id, updates)
-                        totalSuccessCount++
+                    // Result format: { id, translations: { my: { text, status }, zh: { text, status } } }
+                    const updates = {
+                        translatedAt: new Date().toISOString(),
+                        translations: result.translations // V2: Save the whole object
                     }
+
+                    // V1 Fallback (optional, keep for safety if schema not fully migrated)
+                    targetLanguages.forEach(lang => {
+                        const tData = result.translations?.[lang];
+                        if (tData) {
+                            updates[lang] = tData.text; // Legacy Flattening
+                        }
+                    })
+
+                    await updateProjectRow(id, result.id, updates)
+                    totalSuccessCount++
                 }
             }
 
@@ -589,13 +650,28 @@ export default function ProjectView({ projectId }) {
             width: "220px",
             minWidth: "180px",
             color: 'hsl(220, 9%, 46%)',
-            render: row => (
-                <GlossaryHighlighter
-                    text={row.en}
-                    language="en"
-                    glossaryTerms={glossaryTerms}
-                />
-            )
+            render: row => {
+                if (row.id === editingRowId) {
+                    return (
+                        <Textarea
+                            value={editingRowData?.en || ''}
+                            onChange={(e) => setEditingRowData(prev => ({ ...prev, en: e.target.value }))}
+                            onKeyDown={handleEditKeyDown}
+                            className="min-h-[80px] bg-white resize-y"
+                            autoFocus
+                        />
+                    )
+                }
+                return (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                        <GlossaryHighlighter
+                            text={row.en}
+                            language="en"
+                            glossaryTerms={glossaryTerms}
+                        />
+                    </div>
+                )
+            }
         },
         // Dynamic target language columns
         ...targetLanguages.map(langCode => ({
@@ -604,13 +680,27 @@ export default function ProjectView({ projectId }) {
             width: langCode === 'my' ? "200px" : "180px",
             minWidth: langCode === 'my' ? "160px" : "140px",
             color: 'hsl(220, 9%, 46%)',
-            render: row => (
-                <GlossaryHighlighter
-                    text={row[langCode] || '—'}
-                    language={langCode}
-                    glossaryTerms={glossaryTerms}
-                />
-            )
+            render: row => {
+                if (row.id === editingRowId) {
+                    return (
+                        <Textarea
+                            value={editingRowData?.[langCode] || ''}
+                            onChange={(e) => setEditingRowData(prev => ({ ...prev, [langCode]: e.target.value }))}
+                            onKeyDown={handleEditKeyDown}
+                            className="min-h-[80px] bg-white resize-y"
+                        />
+                    )
+                }
+                return (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                        <GlossaryHighlighter
+                            text={row[langCode] || '—'}
+                            language={langCode}
+                            glossaryTerms={glossaryTerms}
+                        />
+                    </div>
+                )
+            }
         }))
     ]
 
@@ -644,8 +734,8 @@ export default function ProjectView({ projectId }) {
                 )
             }
         },
-        // Remarks column - always present for stability
-        {
+        // Remarks column - only present if hasRemarks
+        ...(hasRemarks ? [{
             header: "Remarks",
             accessor: "remarks",
             width: "200px",
@@ -669,7 +759,7 @@ export default function ProjectView({ projectId }) {
                     </div>
                 )
             }
-        },
+        }] : []),
         {
             header: "Template",
             accessor: "promptId",
@@ -685,55 +775,70 @@ export default function ProjectView({ projectId }) {
                 />
             )
         },
+
         {
             header: "",
             accessor: "actions",
             width: "50px",
-            render: (row) => (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '24px',
-                                height: '24px',
-                                border: 'none',
-                                backgroundColor: 'transparent',
-                                cursor: 'pointer',
-                                borderRadius: '4px'
-                            }}
-                        >
-                            <MoreHorizontal style={{ width: '16px', height: '16px', color: 'hsl(220, 9%, 46%)' }} />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" style={{ minWidth: '120px' }}>
-                        <DropdownMenuItem
-                            onClick={() => {
-                                // Select this row for editing and scroll to it
-                                if (!selectedRowIds.has(row.id)) {
-                                    toggleRowSelection(project.id, row.id)
-                                }
-                                toast.info('Row selected. Edit cells directly in the table.')
-                            }}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <Pencil style={{ width: '14px', height: '14px', marginRight: '8px' }} />
-                            Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={() => {
-                                setDeleteConfirm({ type: 'single', id: row.id, count: 1 })
-                            }}
-                            style={{ cursor: 'pointer', color: 'hsl(0, 84%, 60%)' }}
-                        >
-                            <Trash2 style={{ width: '14px', height: '14px', marginRight: '8px' }} />
-                            Delete
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
+            render: (row) => {
+                if (row.id === editingRowId) {
+                    return (
+                        <div className="flex flex-col gap-1 items-center justify-center">
+                            <button
+                                onClick={handleSaveEdit}
+                                className="text-xs bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600"
+                            >
+                                Save
+                            </button>
+                            <button
+                                onClick={handleCancelEdit}
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )
+                }
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '24px',
+                                    height: '24px',
+                                    border: 'none',
+                                    backgroundColor: 'transparent',
+                                    cursor: 'pointer',
+                                    borderRadius: '4px'
+                                }}
+                            >
+                                <MoreHorizontal style={{ width: '16px', height: '16px', color: 'hsl(220, 9%, 46%)' }} />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" style={{ minWidth: '120px' }}>
+                            <DropdownMenuItem
+                                onClick={() => handleStartEdit(row)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <Pencil style={{ width: '14px', height: '14px', marginRight: '8px' }} />
+                                Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    setDeleteConfirm({ type: 'single', id: row.id, count: 1 })
+                                }}
+                                style={{ cursor: 'pointer', color: 'hsl(0, 84%, 60%)' }}
+                            >
+                                <Trash2 style={{ width: '14px', height: '14px', marginRight: '8px' }} />
+                                Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )
+            }
         }
     ]
 
@@ -747,13 +852,14 @@ export default function ProjectView({ projectId }) {
                 className="hidden"
             />
 
-            {/* Page Title */}
-            <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: 'hsl(220, 9%, 46%)' }}>
-                {currentPageId
-                    ? pages.find(p => p.id === currentPageId)?.name || project.name
-                    : project.name
-                }
-            </h1>
+            {/* Page Title - Static */}
+            <div className="flex items-center gap-2 mb-1">
+                <h1
+                    className="text-2xl font-bold tracking-tight text-foreground"
+                >
+                    {currentTitle}
+                </h1>
+            </div>
 
             {/* Action Bar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
@@ -762,36 +868,16 @@ export default function ProjectView({ projectId }) {
                 </span>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {/* Search - Always available */}
-                    <div style={{ position: 'relative' }}>
-                        <input
-                            type="text"
-                            placeholder="Search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-background dark:bg-muted text-foreground"
-                            style={{
-                                borderRadius: '12px',
-                                height: '32px',
-                                width: '140px',
-                                fontSize: '14px',
-                                padding: '0 12px 0 32px',
-                                border: '1px solid hsl(220, 13%, 91%)',
-                                outline: 'none'
-                                // backgroundColor removed to let className handle it
-                            }}
-
-                        />
-                        <Search style={{
-                            position: 'absolute',
-                            left: '10px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: '14px',
-                            height: '14px',
-                            color: 'hsl(220, 9%, 46%)'
-                        }} />
-                    </div>
+                    {/* Search */}
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={(val) => {
+                            setSearchQuery(val)
+                            setCurrentPage(1)
+                        }}
+                        placeholder="Search translations..."
+                        width="200px"
+                    />
 
                     {/* Filter - Available when rows exist and NO selection */}
                     {hasRows && !hasSelection && (
@@ -933,42 +1019,24 @@ export default function ProjectView({ projectId }) {
                             <Plus style={{ width: '16px', height: '16px', color: TABLE_STYLES.primaryColor }} />
                         </td>
                         <td style={{ padding: '8px 16px' }}>
-                            <input
+                            <Textarea
                                 ref={newRowInputRef}
-                                type="text"
                                 placeholder="Enter English text..."
                                 value={newRowData.en}
                                 onChange={(e) => setNewRowData(prev => ({ ...prev, en: e.target.value }))}
                                 onKeyDown={handleNewRowKeyDown}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 12px',
-                                    fontSize: '14px',
-                                    border: '1px solid hsl(340, 82%, 59%, 0.3)',
-                                    borderRadius: '6px',
-                                    outline: 'none',
-                                    backgroundColor: 'white'
-                                }}
+                                className="min-h-[60px] bg-white resize-y"
                             />
                         </td>
                         {/* Dynamic target language inputs based on project settings */}
                         {targetLanguages.map(langCode => (
                             <td key={langCode} style={{ padding: '8px 16px' }}>
-                                <input
-                                    type="text"
+                                <Textarea
                                     placeholder={`${LANGUAGES[langCode]?.label || langCode} (optional)`}
                                     value={newRowData[langCode] || ''}
                                     onChange={(e) => setNewRowData(prev => ({ ...prev, [langCode]: e.target.value }))}
                                     onKeyDown={handleNewRowKeyDown}
-                                    style={{
-                                        width: '100%',
-                                        padding: '8px 12px',
-                                        fontSize: '14px',
-                                        border: '1px solid hsl(220, 13%, 91%)',
-                                        borderRadius: '6px',
-                                        outline: 'none',
-                                        backgroundColor: 'white'
-                                    }}
+                                    className="min-h-[60px] bg-white resize-y"
                                 />
                             </td>
                         ))}
@@ -1061,15 +1129,17 @@ export default function ProjectView({ projectId }) {
             />
 
             {/* Pagination */}
-            {totalRows > 0 && (
-                <Pagination
-                    currentPage={currentPage}
-                    totalItems={totalRows}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                    onItemsPerPageChange={setItemsPerPage}
-                />
-            )}
+            {
+                totalRows > 0 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalItems={totalRows}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                    />
+                )
+            }
 
             {/* Delete Confirmation Dialog */}
             {/* Delete Confirmation Dialog */}
@@ -1096,6 +1166,6 @@ export default function ProjectView({ projectId }) {
                 confirmLabel="Add Anyway"
                 variant="default"
             />
-        </div>
+        </div >
     )
 }

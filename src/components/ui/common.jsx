@@ -41,7 +41,7 @@ export function SearchInput({
     value,
     onChange,
     placeholder = 'Search...',
-    width = '140px',
+    width = '200px',
     style = {}
 }) {
     return (
@@ -49,11 +49,11 @@ export function SearchInput({
             <Search
                 style={{
                     position: 'absolute',
-                    left: '10px',
+                    left: '12px',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    width: '14px',
-                    height: '14px',
+                    width: '16px',
+                    height: '16px',
                     color: 'hsl(220, 9%, 46%)'
                 }}
             />
@@ -64,10 +64,10 @@ export function SearchInput({
                 onChange={(e) => onChange(e.target.value)}
                 style={{
                     borderRadius: '12px',
-                    height: '32px',
+                    height: '36px',
                     width: '100%',
                     fontSize: '14px',
-                    padding: '0 12px 0 32px',
+                    padding: '0 12px 0 36px',
                     border: '1px solid hsl(220, 13%, 91%)',
                     outline: 'none',
                     backgroundColor: 'white'
