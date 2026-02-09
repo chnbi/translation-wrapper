@@ -147,17 +147,34 @@ const navEssentials = [
   },
 ]
 
-// Settings sub-items per Figma
+// Settings - Flattened categories per user request
 const navSettings = [
   {
-    title: "Settings",
-    icon: Settings2,
-    items: [
-      { title: "Settings", url: "#settings" },
-      { title: "API Keys", url: "#settings/api-keys" },
-      { title: "User Roles", url: "#settings/roles" },
-      { title: "Notification", url: "#settings/notifications" },
-    ],
+    title: "Security",
+    url: "#settings?section=security", // Deep link to security section
+    icon: Key,
+  },
+  {
+    title: "API Configuration",
+    url: "#settings?section=api-configuration",
+    icon: Sparkles,
+  },
+  {
+    title: "Administration",
+    url: "#settings?section=administration",
+    icon: Users,
+    // We'll filter this by role in the main component
+  },
+  {
+    title: "Audit Trail",
+    url: "#settings?section=audit-trail", // Matched ID in Settings.jsx (AuditLogsSection often has own ID or wrapper)
+    icon: FileText,
+    // We'll filter this by role in the main component
+  },
+  {
+    title: "Account",
+    url: "#settings?section=account",
+    icon: Users,
   },
 ]
 
@@ -552,7 +569,34 @@ export function AppSidebar({ ...props }) {
 
       <SidebarContent className="bg-sidebar text-sidebar-foreground/80 px-2 pt-2 gap-4">
         {/* Essentials */}
-        <NavMain items={navEssentialsWithBadges} />
+        <SidebarGroup>
+          <SidebarMenu>
+            {navEssentialsWithBadges.map((item) => {
+              const isActive = currentHash === item.url || (item.url !== '#' && currentHash.startsWith(item.url + '/'))
+
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={item.title}
+                    className={isActive ? "bg-pink-50 text-pink-600 font-medium hover:bg-pink-100/50 hover:text-pink-700" : ""}
+                  >
+                    <a href={item.url}>
+                      <item.icon className={isActive ? "text-pink-600" : "text-gray-500"} />
+                      <span>{item.title}</span>
+                      {item.badge && (
+                        <span className="ml-auto text-[10px] font-semibold text-white bg-primary rounded-full px-1.5 h-4 min-w-[16px] flex items-center justify-center">
+                          {item.badge}
+                        </span>
+                      )}
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
 
         {/* Recent Projects - Hidden when sidebar minimized */}
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -562,25 +606,25 @@ export function AppSidebar({ ...props }) {
               const pages = getProjectPages(project.id) || []
               const isActiveProject = currentHash.includes(`project/${project.id}`)
 
-              // Always show as collapsible dropdown (even with 1 page)
               return (
-                <ProjectWithPages
-                  key={project.id}
-                  project={project}
-                  pages={pages}
-                  isActive={isActiveProject}
-                  currentHash={currentHash}
-                  onDeleteProject={handleDeleteProject}
-                  onAddPage={handleAddPage}
-                  onDeletePage={handleDeletePage}
-                  onRenamePage={handleRenamePage}
-                  isExpanded={expandedProjectId === project.id}
-                  onProjectClick={handleProjectClick}
-                  getPageBadge={(pageId) => {
-                    const rows = getPageRows(project.id, pageId)
-                    return getNewApprovalCount(project.id, pageId, rows)
-                  }}
-                />
+                <div key={project.id} className="px-2"> { /* Added padding wrapper */}
+                  <ProjectWithPages
+                    project={project}
+                    pages={pages}
+                    isActive={isActiveProject}
+                    currentHash={currentHash}
+                    onDeleteProject={handleDeleteProject}
+                    onAddPage={handleAddPage}
+                    onDeletePage={handleDeletePage}
+                    onRenamePage={handleRenamePage}
+                    isExpanded={expandedProjectId === project.id}
+                    onProjectClick={handleProjectClick}
+                    getPageBadge={(pageId) => {
+                      const rows = getPageRows(project.id, pageId)
+                      return getNewApprovalCount(project.id, pageId, rows)
+                    }}
+                  />
+                </div>
               )
             })}
           </SidebarMenu>
@@ -590,53 +634,29 @@ export function AppSidebar({ ...props }) {
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel className="text-sidebar-foreground/50 font-medium tracking-wide uppercase text-[10px] mt-2 mb-1 px-2">Settings</SidebarGroupLabel>
           <SidebarMenu>
-            <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton>
-                    <Settings2 className="h-4 w-4" />
-                    <span>Settings</span>
-                    <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${settingsOpen ? 'rotate-90' : ''}`} />
+            {navSettings.map((item) => {
+              // Filter out restricted items
+              if ((item.title === 'Administration' || item.title === 'Audit Trail') && !isManager) return null
+
+              const isActive = currentHash === item.url
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={item.title}
+                    className={isActive ? "bg-pink-50 text-pink-600 font-medium hover:bg-pink-100/50 hover:text-pink-700" : ""}
+                  >
+                    <a href={item.url}>
+                      <item.icon className={isActive ? "text-pink-600" : "text-gray-500"} />
+                      <span>{item.title}</span>
+                    </a>
                   </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {/* Manager-only items */}
-                    {isManager && (
-                      <>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild>
-                            <a href="#settings">
-                              <Key className="h-3.5 w-3.5" />
-                              <span>API Keys</span>
-                            </a>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild>
-                            <a href="#users">
-                              <Users className="h-3.5 w-3.5" />
-                              <span>Users</span>
-                            </a>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </>
-                    )}
-                    {/* All users can see Notifications */}
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <a href="#settings">
-                          <Bell className="h-3.5 w-3.5" />
-                          <span>Notifications</span>
-                        </a>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </SidebarMenuItem>
-            </Collapsible>
+                </SidebarMenuItem>
+              )
+            })}
           </SidebarMenu>
-        </SidebarGroup >
+        </SidebarGroup>
       </SidebarContent >
 
       <SidebarFooter className="bg-sidebar p-0" />

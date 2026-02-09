@@ -11,4 +11,13 @@ export default defineConfig({
             '@': path.resolve(__dirname, './src'),
         },
     },
+    server: {
+        proxy: {
+            '/proxy/ilmuchat': {
+                target: 'https://api.ytlailabs.tech',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/proxy\/ilmuchat/, '')
+            }
+        }
+    }
 })

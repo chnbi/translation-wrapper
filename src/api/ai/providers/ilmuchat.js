@@ -16,8 +16,11 @@ export class ILMUchatProvider extends BaseAIProvider {
     constructor(config = {}) {
         super(config);
         this.apiKey = config.apiKey || import.meta.env.VITE_ILMUCHAT_API_KEY;
-        this.endpoint = config.endpoint || import.meta.env.VITE_ILMUCHAT_ENDPOINT || 'https://api.ytlailabs.tech/v1/chat/completions';
-        this.model = config.model || import.meta.env.VITE_ILMUCHAT_MODEL || 'gpt-4o-mini';
+
+        const defaultEndpoint = import.meta.env.VITE_ILMUCHAT_ENDPOINT || 'https://api.ytlailabs.tech/v1/chat/completions';
+        // Use proxy in development to avoid CORS
+        this.endpoint = config.endpoint || (import.meta.env.DEV ? '/proxy/ilmuchat/v1/chat/completions' : defaultEndpoint);
+        this.model = config.model || import.meta.env.VITE_ILMUCHAT_MODEL || 'ilmu-trial';
     }
 
     /**
@@ -25,7 +28,7 @@ export class ILMUchatProvider extends BaseAIProvider {
      */
     initialize() {
         if (!this.apiKey) {
-            console.warn('❌ [ILMUchat] No API Key found');
+            console.warn('[ILMUchat] No API Key found');
             return false;
         }
         return true;
@@ -38,7 +41,7 @@ export class ILMUchatProvider extends BaseAIProvider {
     setApiKey(newApiKey) {
         if (newApiKey && newApiKey !== this.apiKey) {
             this.apiKey = newApiKey;
-            console.log('🔑 [ILMUchat] API key updated');
+            // API key updated
         }
     }
 
@@ -61,11 +64,7 @@ export class ILMUchatProvider extends BaseAIProvider {
             glossaryTerms = []
         } = options;
 
-        console.log('🚀 [ILMUchat] Batch Request:', {
-            count: items.length,
-            targets: targetLanguages,
-            model: this.model
-        });
+        // ILMUchat batch request started
 
         try {
             // 1. Build Prompts
@@ -128,7 +127,7 @@ export class ILMUchatProvider extends BaseAIProvider {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
-            console.error('❌ [ILMUchat] API Error:', response.status, error);
+            console.error('[ILMUchat] API Error:', response.status, error);
 
             if (response.status === 429) throw new Error('RATE_LIMIT');
             throw new Error(error.error?.message || `API Error: ${response.status}`);
@@ -136,13 +135,13 @@ export class ILMUchatProvider extends BaseAIProvider {
 
         const data = await response.json();
         const duration = Date.now() - start;
-        console.log(`✅ [ILMUchat] Response in ${duration}ms`);
+        // Response received
 
         return data;
     }
 
     _handleError(error) {
-        console.error('❌ [ILMUchat] Error:', error);
+        console.error('[ILMUchat] Error:', error);
         throw error;
     }
 
@@ -160,12 +159,16 @@ export class ILMUchatProvider extends BaseAIProvider {
         const instructions = template.prompt.replace(/\{\{targetLanguage\}\}/gi, targetLangNames);
         const glossarySection = this._buildGlossarySection(glossaryTerms);
 
+        // DEBUG: Marker to verify ILMU is working
+        const debugInstruction = '\nIMPORTANT: Append " [ILMU]" to the end of every translation text translation so I can verify the provider.\n'
+
         return `You are a professional translator.
 Source Language: ${sourceLangName}
 Target Languages: ${targetLangNames}
 
 ## Instructions
 ${instructions}
+${debugInstruction}
 ${glossarySection}
 
 ## Output Requirements

@@ -133,7 +133,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="rounded-2xl border-x border-t border-b-0 border-border bg-card overflow-hidden">
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent border-b border-border">

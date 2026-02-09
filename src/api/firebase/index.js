@@ -67,6 +67,7 @@ export {
     getUserByEmail,
     upsertUser,
     updateUserRole,
+    updateUserLanguages,
     deleteUser,
     getRoles
 } from './roles';

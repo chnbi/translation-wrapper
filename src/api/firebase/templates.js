@@ -68,7 +68,7 @@ export async function getOrCreateDefaultTemplate() {
         }
 
         // No default template - create one
-        console.log('📝 [Firebase] Creating default template...');
+        // No default template - create one
         const docRef = await addDoc(collection(db, COLLECTION), {
             ...DEFAULT_TEMPLATE,
             createdAt: serverTimestamp()

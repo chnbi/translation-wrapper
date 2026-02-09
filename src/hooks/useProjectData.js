@@ -23,11 +23,11 @@ export function useProjectData() {
     useEffect(() => {
         async function loadData() {
             try {
-                console.log('[Firebase] Loading projects...')
+                // Loading projects
                 const firestoreProjects = await dbService.getProjects()
 
                 if (firestoreProjects.length === 0) {
-                    console.log('[Firebase] No projects found')
+                    // No projects
                     setProjects([])
                     setDataSource('firestore')
                 } else {
@@ -48,7 +48,7 @@ export function useProjectData() {
 
                             // Auto-migrate legacy projects: if has rows but no pages, create Page 1
                             if (pages.length === 0 && unpagedRows && unpagedRows.length > 0) {
-                                console.log(`[Migration] Project ${project.id} has ${unpagedRows.length} legacy rows, migrating to Page 1...`)
+                                // Migration: Legacy rows need to be moved to Page 1
                                 try {
                                     const page = await dbService.addProjectPage(project.id, { name: 'Page 1' })
                                     // Move rows to the new page
@@ -59,7 +59,7 @@ export function useProjectData() {
                                     pageRows[page.id] = unpagedRows
                                     // Update our local reference since they are now paged
                                     allProjectRows = unpagedRows // Content is same, just location changed
-                                    console.log(`[Migration] Successfully migrated ${unpagedRows.length} rows to Page 1`)
+                                    // Migrated rows to Page 1
                                 } catch (migrationErr) {
                                     console.error(`[Migration] Failed to migrate project ${project.id}:`, migrationErr)
                                 }
@@ -123,10 +123,10 @@ export function useProjectData() {
                     setProjectRows(allRows)
                     setProjectPages(allPagesData)
                     setDataSource('firestore')
-                    console.log('[Firebase] Loaded', projectsWithStats.length, 'projects')
+                    // Projects loaded successfully
                 }
             } catch (error) {
-                console.error('❌ [Firebase] Error loading data:', error)
+                console.error('[Firebase] Error loading data:', error)
                 toast.error("Failed to load projects from database")
                 setDataSource('error')
                 setProjects([])
@@ -139,7 +139,7 @@ export function useProjectData() {
 
         // Poll for updates every 30 seconds (Auto-refresh)
         const intervalId = setInterval(() => {
-            console.log('🔄 [Auto-Refresh] Polling for updates...')
+            // Auto-refresh polling
             loadData()
         }, 30000)
 
@@ -250,11 +250,11 @@ export function useProjectData() {
         if (dataSource === 'firestore') {
             if (pageIdForRow) {
                 // Row is in a page - use page-specific update
-                console.log(`✏️ [PocketBase] Updating page row: project=${projectId}, page=${pageIdForRow}, row=${rowId}`)
+                // Update page row
                 dbService.updatePageRow(projectId, pageIdForRow, rowId, updates).catch(console.error)
             } else {
                 // Row is in legacy flat structure
-                console.log(`✏️ [PocketBase] Updating legacy row: project=${projectId}, row=${rowId}`)
+                // Update legacy row
                 dbService.updateProjectRow(projectId, rowId, updates).catch(console.error)
             }
         }

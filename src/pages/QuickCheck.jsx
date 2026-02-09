@@ -20,7 +20,7 @@ const LANGUAGES = [
 ]
 
 export default function QuickCheck() {
-    const { terms: glossaryTerms } = useGlossary()
+    const { approvedTerms: glossaryTerms } = useGlossary() // Use APPOVED terms for highlighting
     const { templates } = usePrompts()
 
     const [sourceLanguage, setSourceLanguage] = useState('en')

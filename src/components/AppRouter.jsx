@@ -32,7 +32,8 @@ export function AppRouter() {
 
     // Get page component and breadcrumbs based on route
     const getPageConfig = () => {
-        const path = route.replace('#', '') || '/';
+        const fullPath = route.replace('#', '') || '/';
+        const [path] = fullPath.split('?');
 
         switch (path) {
             case '/':

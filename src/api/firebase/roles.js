@@ -89,7 +89,7 @@ export async function updateUserRole(userId, role) {
         const docRef = doc(db, COLLECTION, userId);
         // Use setDoc with merge to create the document if it doesn't exist
         await setDoc(docRef, { role, updatedAt: serverTimestamp() }, { merge: true });
-        console.log('✅ [Firebase] User role updated:', userId, '->', role);
+        // Role updated
         return { id: userId, role };
     } catch (error) {
         console.error('Error updating user role:', error);
@@ -97,10 +97,22 @@ export async function updateUserRole(userId, role) {
     }
 }
 
+export async function updateUserLanguages(userId, languages) {
+    try {
+        const docRef = doc(db, COLLECTION, userId);
+        await setDoc(docRef, { languages, updatedAt: serverTimestamp() }, { merge: true });
+        // Languages updated
+        return { id: userId, languages };
+    } catch (error) {
+        console.error('Error updating user languages:', error);
+        throw error;
+    }
+}
+
 export async function deleteUser(userId) {
     try {
         await deleteDoc(doc(db, COLLECTION, userId));
-        console.log('✅ [Firebase] User deleted:', userId);
+        // User deleted
     } catch (error) {
         console.error('Error deleting user:', error);
         throw error;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { Shield, User, ChevronsUpDown, Search, UserCog, RefreshCw } from "lucide-react"
+import { Shield, User, ChevronsUpDown, Search, UserCog, RefreshCw, Globe, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,7 +18,8 @@ import {
 import { toast } from "sonner"
 import { useAuth } from "@/App"
 import { ROLES, getRoleLabel, getRoleColor } from "@/lib/permissions"
-import { getUsers, updateUserRole } from "@/api/firebase"
+import { getUsers, updateUserRole, updateUserLanguages } from "@/api/firebase"
+import { LANGUAGES, getLanguagesArray } from "@/lib/constants"
 
 export default function UserManagementDialog({ open, onOpenChange }) {
     const { user: currentUser, role: currentRole } = useAuth()
@@ -26,6 +27,7 @@ export default function UserManagementDialog({ open, onOpenChange }) {
     const [searchQuery, setSearchQuery] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [isFetching, setIsFetching] = useState(true)
+    const [languageDialogUser, setLanguageDialogUser] = useState(null)
 
     // Fetch users from PocketBase
     const fetchUsers = useCallback(async () => {
@@ -38,6 +40,7 @@ export default function UserManagementDialog({ open, onOpenChange }) {
                 name: u.name || u.email?.split('@')[0] || 'User',
                 role: u.role || ROLES.EDITOR,
                 joined: u.created ? new Date(u.created).toLocaleDateString() : 'N/A',
+                languages: u.languages || [],
                 avatar: u.avatar
             })))
         } catch (error) {
@@ -172,6 +175,7 @@ export default function UserManagementDialog({ open, onOpenChange }) {
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
+                                        )}
                                         </div>
                                     </div>
                                 )
@@ -183,6 +187,94 @@ export default function UserManagementDialog({ open, onOpenChange }) {
                     <p className="text-xs text-muted-foreground">
                         Users are synced from PocketBase. To add new users, create them in the PocketBase admin panel.
                     </p>
+                </div>
+            </DialogContent>
+
+            {/* Language Assignment Dialog */}
+            {
+                languageDialogUser && (
+                    <LanguageAssignmentDialog
+                        user={languageDialogUser}
+                        open={!!languageDialogUser}
+                        onOpenChange={(open) => !open && setLanguageDialogUser(null)}
+                        onUpdate={(userId, languages) => {
+                            setUsers(prev => prev.map(u => u.id === userId ? { ...u, languages } : u))
+                            setLanguageDialogUser(null)
+                        }}
+                    />
+                )
+            }
+        </Dialog >
+    )
+}
+
+function LanguageAssignmentDialog({ user, open, onOpenChange, onUpdate }) {
+    const [selectedLanguages, setSelectedLanguages] = useState(user.languages || [])
+    const [isSaving, setIsSaving] = useState(false)
+
+    const handleToggle = (code) => {
+        setSelectedLanguages(prev =>
+            prev.includes(code)
+                ? prev.filter(c => c !== code)
+                : [...prev, code]
+        )
+    }
+
+    const handleSave = async () => {
+        setIsSaving(true)
+        try {
+            await updateUserLanguages(user.id, selectedLanguages)
+            onUpdate(user.id, selectedLanguages)
+            toast.success("Languages updated")
+        } catch (error) {
+            console.error(error)
+            toast.error("Failed to update languages")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Assign Languages</DialogTitle>
+                    <DialogDescription>
+                        Select languages that <strong>{user.name}</strong> can approve.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-2 gap-2 py-4">
+                    {getLanguagesArray().map(lang => {
+                        const isSelected = selectedLanguages.includes(lang.code)
+                        return (
+                            <div
+                                key={lang.code}
+                                onClick={() => handleToggle(lang.code)}
+                                className={`
+                                    flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all
+                                    ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/50'}
+                                `}
+                            >
+                                <div className={`
+                                    w-5 h-5 rounded flex items-center justify-center border transition-colors
+                                    ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'}
+                                `}>
+                                    {isSelected && <Check className="w-3.5 h-3.5" />}
+                                </div>
+                                <div className="text-sm font-medium">
+                                    {lang.label}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? "Saving..." : "Save Changes"}
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

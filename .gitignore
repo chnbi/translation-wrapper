@@ -30,3 +30,4 @@ src/archive/
 *.txt
 documentation/wordflow-a66bb-firebase-adminsdk-fbsvc-c5d853574a.json
 wordflow-a66bb-firebase-adminsdk-fbsvc-d7f1f72126.json
+node_modules

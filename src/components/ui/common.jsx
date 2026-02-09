@@ -17,11 +17,11 @@ export function PageHeader({ children, description, actions, className = '' }) {
     return (
         <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 ${className}`}>
             <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     {children}
                 </h1>
                 {description && (
-                    <p className="text-muted-foreground mt-1 text-sm">
+                    <p className="text-muted-foreground mt-2 text-base">
                         {description}
                     </p>
                 )}

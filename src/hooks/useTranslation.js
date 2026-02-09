@@ -3,8 +3,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 
 // Queue configuration
-const BATCH_SIZE = 10
-const THROTTLE_MS = 1000
+const BATCH_SIZE = 25
+const THROTTLE_MS = 500
 
 /**
  * Manages translation queue, Gemini API calls, and retry logic
@@ -38,7 +38,16 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
         try {
             const glossaryTerms = fetchGlossaryFn ? await fetchGlossaryFn() : []
             // Use new AI Service
-            const { getAI } = await import('@/api/ai')
+            const { getAI, AIService } = await import('@/api/ai')
+
+            // Apply user-specific API key before translation
+            try {
+                const { useAuth } = await import('@/App')
+                // We can't use hooks here, but we can try to get user from context via a different approach
+                // For now, we'll rely on the Settings page to have saved keys, which AIService can retrieve
+            } catch { }
+
+            // Get the AI instance (will use cached instance with applied API key if set)
             const ai = getAI()
 
             // Map rows to generic input format
@@ -113,7 +122,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
 
     // Cancel the translation queue
     const cancelTranslationQueue = useCallback(() => {
-        console.log('🛑 [Translation] Cancellation requested')
+        // Cancellation requested
         isCancelledRef.current = true
 
         // Mark all queued rows back to pending
@@ -159,7 +168,7 @@ export function useTranslation(updateRowsFn, fetchGlossaryFn) {
                 const results = await performTranslation(batch.rows, batch.template, batch.targetLanguages)
 
                 if (isCancelledRef.current) {
-                    console.log('🛑 [Translation] Cancelled during batch')
+                    // Cancelled during batch
                     return
                 }
 

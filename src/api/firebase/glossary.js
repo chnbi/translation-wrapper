@@ -78,7 +78,7 @@ export async function createGlossaryTerms(termsArray) {
         });
 
         await batch.commit();
-        console.log('✅ [Firebase] Created', results.length, 'glossary terms');
+        // Terms created successfully
         return results;
     } catch (error) {
         console.error('Error creating glossary terms:', error);
@@ -113,7 +113,7 @@ export async function deleteGlossaryTerms(ids) {
             batch.delete(docRef);
         });
         await batch.commit();
-        console.log('✅ [Firebase] Deleted', ids.length, 'glossary terms');
+        // Terms deleted successfully
     } catch (error) {
         console.error('Error deleting glossary terms:', error);
         throw error;
@@ -122,7 +122,7 @@ export async function deleteGlossaryTerms(ids) {
 
 // Placeholder for seeding
 export async function seedDefaultGlossary() {
-    console.log('📦 [Firebase] Seed function called - use Admin UI to seed data');
+    // Use Admin UI to seed data
 }
 
 // ==========================================

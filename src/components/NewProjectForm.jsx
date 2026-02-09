@@ -64,7 +64,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit, importData =
             // Check file type
             const fileType = detectFileType(selectedFile)
             if (fileType === 'unknown') {
-                toast.error('Unsupported file type. Please upload .xlsx, .docx, .pptx, or .csv')
+                toast.error('Unsupported file type. Please upload .xlsx, .docx, .pptx, .pdf, or .csv')
                 setIsParsing(false)
                 return
             }
@@ -79,7 +79,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit, importData =
 
             // Parse file immediately
             let sheets = {}
-            if (fileType === 'docx' || fileType === 'pptx') {
+            if (fileType === 'docx' || fileType === 'pptx' || fileType === 'pdf') {
                 const data = await parseFile(selectedFile)
                 sheets[data.name || 'Document'] = data.entries.map(entry => ({
                     en: entry.en || entry.text || '',
@@ -195,7 +195,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit, importData =
                             type="file"
                             ref={fileInputRef}
                             onChange={(e) => handleFileSelect(e.target.files?.[0])}
-                            accept=".xlsx,.xls,.csv,.docx,.pptx"
+                            accept=".xlsx,.xls,.csv,.docx,.pptx,.pdf"
                             className="hidden"
                         />
                         <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-4 shadow-sm group-hover:scale-105 transition-transform">
@@ -205,7 +205,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit, importData =
                             Browse files or drag & drop to upload
                         </p>
                         <p className="text-sm text-gray-500">
-                            .csv, .xlsx, .xls, .docx, .pptx
+                            .csv, .xlsx, .xls, .docx, .pptx, .pdf
                         </p>
                     </div>
                 ) : (
@@ -252,7 +252,7 @@ export default function NewProjectForm({ isOpen, onClose, onSubmit, importData =
                     {/* Project Description */}
                     <div className="mb-6">
                         <label className="block text-sm font-medium text-gray-500 mb-1.5">
-                            Project Description<span className="text-primary ml-0.5">*</span>
+                            Project Description
                         </label>
                         <TextInput
                             placeholder="Description"

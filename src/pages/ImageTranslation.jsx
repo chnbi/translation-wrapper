@@ -268,12 +268,12 @@ export default function ImageTranslation() {
                                     )}
 
                                     {/* Actions */}
-                                    <div className="flex flex-wrap gap-4 mt-8">
-                                        <Button onClick={handleExtract} className="h-12 px-8 rounded-xl gap-2 font-medium shadow-lg shadow-primary/20">
+                                    <div className="flex flex-wrap gap-3 mt-8">
+                                        <Button onClick={handleExtract} className="h-9 px-5 rounded-xl gap-2 font-medium">
                                             <Sparkles className="w-4 h-4" />
                                             Extract Text
                                         </Button>
-                                        <Button variant="outline" onClick={handleReset} className="h-12 px-6 rounded-xl">
+                                        <Button variant="outline" onClick={handleReset} className="h-9 px-5 rounded-xl">
                                             Upload Different
                                         </Button>
                                     </div>

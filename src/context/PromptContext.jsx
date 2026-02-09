@@ -41,7 +41,7 @@ export function PromptProvider({ children }) {
     useEffect(() => {
         async function loadData() {
             try {
-                console.log('[Firebase] Loading templates...')
+                // Loading templates from Firebase
 
                 // Ensure default template exists
                 await dbService.getOrCreateDefaultTemplate()
@@ -57,7 +57,7 @@ export function PromptProvider({ children }) {
 
                 setTemplates(enhanced)
                 setDataSource('firebase')
-                console.log('[Firebase] Loaded', pbTemplates.length, 'templates')
+                // Templates loaded
             } catch (error) {
                 console.error('[Firebase] Error loading templates:', error)
                 toast.error("Failed to load templates")

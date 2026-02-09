@@ -33,7 +33,7 @@ export function GlossaryProvider({ children }) {
     const refreshGlossary = useCallback(async () => {
         setIsLoading(true)
         try {
-            console.log('[Firebase] Loading glossary terms...')
+            // Loading glossary terms from Firebase
             const firestoreTerms = await dbService.getGlossaryTerms()
 
             // Load categories
@@ -72,7 +72,7 @@ export function GlossaryProvider({ children }) {
             setTerms(normalizedTerms)
             setCategories(finalCategories)
             setDataSource('firestore')
-            console.log('[Firebase] Loaded', firestoreTerms.length, 'glossary terms')
+            // Glossary terms loaded
 
             // DEBUG: Check translations keys if still empty
             if (firestoreTerms.length > 0) {
@@ -239,8 +239,12 @@ export function GlossaryProvider({ children }) {
 
 
 
+    // Filter approved terms for consumption by highlighter/AI
+    const approvedTerms = terms.filter(t => t.status === 'approved' || t.status === 'published')
+
     const value = {
         terms,
+        approvedTerms, // Expose approved terms
         isLoading,
         dataSource,
         addTerm,

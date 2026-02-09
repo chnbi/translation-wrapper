@@ -9,23 +9,26 @@ import {
     Download,
     ExternalLink,
     Check,
-    Shield,
+    Pencil,
     MoreHorizontal
 } from "lucide-react"
 import { useAuth } from "@/App"
 import { ROLES, getRoleLabel, getRoleColor } from "@/lib/permissions"
-import { getUsers, updateUserRole } from "@/api/firebase"
+import { getUsers } from "@/api/firebase"
 import { toast } from "sonner"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import UserManagementDialog from "@/components/dialogs/UserManagementDialog" // Reuse for 'New User' modal logic if needed? 
-// Actually, I'll build a simpler "New User" dialog or reuse the comprehensive management dialog as a "Create/Edit" modal if possible, 
-// OR just implement the "New User" simple form. For now, let's stick to the READ view page.
+import { PageContainer } from "@/components/ui/shared"
+import { PageHeader } from "@/components/ui/common"
+import EditManagerDialog from "@/components/dialogs/EditManagerDialog"
 
 export default function UsersPage() {
     const { user: currentUser, isManager } = useAuth()
     const [users, setUsers] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+
+    // Edit Manager Dialog
+    const [editingManager, setEditingManager] = useState(null)
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true)
@@ -41,14 +44,7 @@ export default function UsersPage() {
                 username: u.username || u.email?.split('@')[0],
                 email: u.email,
                 role: u.role || ROLES.EDITOR,
-                sourceLangs: '-',
-                targetLangs: '-',
-                clients: '-',
-                domains: '-',
-                subdomains: '-',
-                workflow: '-',
-                editorVersion: '-',
-                jobs: 0,
+                languages: u.role === ROLES.MANAGER ? (u.languages || []) : [],
                 loginHistory: u.updated // Mock
             }))
             setUsers(transformed)
@@ -76,15 +72,15 @@ export default function UsersPage() {
         return null
     }
 
-    // Columns Configuration matching the screenshot
+    // Filtered Data
+    const filteredData = users.filter(user =>
+        user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (user.firstName + ' ' + user.lastName).toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    // Columns Configuration
     const columns = [
-        {
-            header: "Active",
-            accessor: "active",
-            width: "60px",
-            align: "center",
-            render: (row) => row.active ? <Check className="w-4 h-4 text-green-600" /> : null
-        },
         {
             header: "#",
             accessor: "index",
@@ -93,136 +89,161 @@ export default function UsersPage() {
             color: 'hsl(220, 9%, 46%)'
         },
         {
-            header: "Last name",
+            header: "User",
             accessor: "lastName",
-            width: "120px",
-            sortable: true
-        },
-        {
-            header: "First name",
-            accessor: "firstName",
-            width: "120px",
-            sortable: true
-        },
-        {
-            header: "Username",
-            accessor: "username",
-            width: "150px"
-        },
-        {
-            header: "Email",
-            accessor: "email",
-            width: "220px"
+            render: (row) => (
+                <div className="flex flex-col">
+                    <span className="font-medium text-slate-900">{row.firstName} {row.lastName}</span>
+                    <span className="text-xs text-slate-500">{row.email}</span>
+                </div>
+            )
         },
         {
             header: "Role",
             accessor: "role",
-            width: "120px",
             render: (row) => (
                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${getRoleColor(row.role)}`}>
                     {getRoleLabel(row.role)}
                 </span>
             )
         },
-        { header: "Source langs", accessor: "sourceLangs", width: "120px", align: "center" },
-        { header: "Target langs", accessor: "targetLangs", width: "120px", align: "center" },
-        { header: "Clients", accessor: "clients", width: "100px", align: "center" },
-        { header: "Domains", accessor: "domains", width: "100px", align: "center" },
-        { header: "Subdomains", accessor: "subdomains", width: "100px", align: "center" },
-        { header: "Workflow", accessor: "workflow", width: "100px", align: "center" },
-        { header: "Editor version", accessor: "editorVersion", width: "120px", align: "center" },
-        { header: "Jobs", accessor: "jobs", width: "80px", align: "center" },
+        {
+            header: "Languages",
+            accessor: "languages",
+            render: (row) => {
+                if (row.role !== ROLES.MANAGER) return <span className="text-slate-400 text-xs">-</span>
+
+                const langs = row.languages || []
+                if (langs.length === 0) return <span className="text-slate-400 text-xs italic">No languages</span>
+
+                return (
+                    <div className="flex items-center gap-2 group">
+                        <div className="flex flex-wrap gap-1">
+                            {langs.slice(0, 3).map(lang => (
+                                <span key={lang} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] border border-slate-200">
+                                    {lang.toUpperCase()}
+                                </span>
+                            ))}
+                            {langs.length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-slate-50 text-slate-400 rounded text-[10px] border border-slate-100">
+                                    +{langs.length - 3}
+                                </span>
+                            )}
+                        </div>
+                        {isManager && (
+                            <button
+                                onClick={() => {
+                                    setEditingManager(row)
+                                    setIsEditDialogOpen(true)
+                                }}
+                                className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Edit Languages"
+                            >
+                                <Pencil className="w-3 h-3" />
+                            </button>
+                        )}
+                    </div>
+                )
+            }
+        },
         {
             header: "Login history",
             accessor: "loginHistory",
-            width: "100px",
+            width: "120px",
             align: "center",
             render: () => <ExternalLink className="w-4 h-4 text-slate-400 cursor-pointer hover:text-primary" />
+        },
+        // We'll add an action column for editing if needed, but the request was "allow them to amend"
+        // Since we are reusing UserManagementDialog or a new one, we need an edit button.
+        {
+            header: "",
+            accessor: "actions",
+            width: "50px",
+            render: (row) => (
+                <MoreHorizontal className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600" />
+            )
         }
     ]
 
-    const filteredData = users.filter(user =>
-        user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (user.firstName + ' ' + user.lastName).toLowerCase().includes(searchQuery.toLowerCase())
-    )
-
     return (
-        <div className="p-6 max-w-[100vw] overflow-hidden flex flex-col h-[calc(100vh-64px)]">
+        <PageContainer>
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" className="md:hidden">
-                        {/* Mobile menu trigger if needed */}
-                    </Button>
-                    <h1 className="text-xl font-semibold text-foreground">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div>
+                    <PageHeader
+                        className="mb-0"
+                        description="Manage team members, roles, and permissions"
+                    >
                         Users
-                    </h1>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon">
-                        <Search className="w-5 h-5 text-muted-foreground" />
-                    </Button>
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400 flex items-center justify-center font-medium text-sm">
-                        WX
-                    </div>
+                    </PageHeader>
                 </div>
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" className="gap-2 h-9 rounded-full px-4 border-border text-foreground hover:bg-muted">
-                        <Filter className="w-4 h-4" />
-                        Filter
-                    </Button>
-                    <Button className="gap-2 h-9 rounded-full px-4 bg-card border border-border text-foreground hover:bg-muted">
-                        <Plus className="w-4 h-4" />
-                        New user
-                    </Button>
-                    <Button variant="outline" className="gap-2 h-9 rounded-full px-4 border-border text-foreground hover:bg-muted">
-                        <Download className="w-4 h-4" />
-                        Import
-                    </Button>
-                </div>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                {/* Left: User Count */}
                 <div className="flex items-center gap-2">
                     <span className="bg-muted px-3 py-1 rounded-full text-xs font-medium text-muted-foreground">
                         {filteredData.length} user{filteredData.length !== 1 && 's'}
                     </span>
                 </div>
+
+                {/* Right: Actions & Search */}
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search users..."
+                            className="pl-9 w-64 h-9 bg-background rounded-full"
+                        />
+                    </div>
+
+                    <Button variant="outline" className="gap-2 h-9 rounded-full px-4 border-border text-foreground hover:bg-muted">
+                        <Filter className="w-4 h-4" />
+                        Filter
+                    </Button>
+                    <Button className="gap-2 h-9 rounded-full px-4 bg-primary text-white hover:bg-primary/90 shadow-sm transition-all active:scale-95">
+                        <Plus className="w-4 h-4" />
+                        New user
+                    </Button>
+                </div>
             </div>
 
             {/* Table Area */}
-            <div className="flex-1 overflow-hidden rounded-2xl border border-border bg-card flex flex-col">
-                <div className="flex-1 overflow-auto">
-                    <DataTable
-                        columns={columns}
-                        data={filteredData}
-                        onToggleSelect={(id) => { }}
-                        onToggleSelectAll={() => { }}
-                        scrollable={true}
-                    />
-                </div>
+            <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+                <DataTable
+                    columns={columns}
+                    data={filteredData}
+                    onToggleSelect={(id) => { }}
+                    onToggleSelectAll={() => { }}
+                // Removed scrollable={true} to let it fit content/page
+                />
 
                 {/* Pagination Footer */}
-                <div className="p-4 border-t border-border flex items-center justify-between bg-card">
+                <div className="p-4 border-t border-border flex items-center justify-between bg-card/50">
                     <span className="text-xs text-muted-foreground">
                         Showing 1-{filteredData.length} of {filteredData.length} results
                     </span>
                     <div className="flex items-center gap-4">
-                        {/* Simple Pagination Mock */}
-                        <div className="flex items-center bg-muted rounded-lg p-1">
-                            <Button variant="ghost" size="icon" disabled className="h-6 w-8 rounded-md text-muted-foreground">{'<'}</Button>
+                        <div className="flex items-center bg-muted/50 rounded-lg p-1 border border-border/50">
+                            <Button variant="ghost" size="icon" disabled className="h-7 w-8 rounded-md text-muted-foreground hover:bg-background">{'<'}</Button>
                             <div className="px-3 text-xs font-medium text-foreground">1</div>
-                            <Button variant="ghost" size="icon" disabled className="h-6 w-8 rounded-md text-muted-foreground">{'>'}</Button>
+                            <Button variant="ghost" size="icon" disabled className="h-7 w-8 rounded-md text-muted-foreground hover:bg-background">{'>'}</Button>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>25</span>
-                        <span>Per page</span>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <EditManagerDialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                user={editingManager}
+                onSuccess={() => {
+                    fetchUsers() // Refresh list to show new languages
+                }}
+            />
+        </PageContainer>
     )
 }

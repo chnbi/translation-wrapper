@@ -82,65 +82,6 @@ function TopBar({ breadcrumbs }) {
             {/* Right: Icons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
 
-                {/* Theme Toggle */}
-                <button
-                    onClick={() => setIsDark(!isDark)}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer'
-                    }}
-                    title="Toggle Theme"
-                >
-                    {isDark ? (
-                        <Moon style={{ width: '18px', height: '18px', color: 'hsl(220, 9%, 46%)' }} />
-                    ) : (
-                        <Sun style={{ width: '18px', height: '18px', color: 'hsl(220, 9%, 46%)' }} />
-                    )}
-                </button>
-
-                {/* History */}
-                <button
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer'
-                    }}
-                    title="History"
-                >
-                    <History style={{ width: '18px', height: '18px', color: 'hsl(220, 9%, 46%)' }} />
-                </button>
-
-                {/* Notifications */}
-                <button
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer'
-                    }}
-                    title="Notifications"
-                >
-                    <Bell style={{ width: '18px', height: '18px', color: 'hsl(220, 9%, 46%)' }} />
-                </button>
-
                 {/* User Avatar / Role Switcher (Dev) */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -223,7 +164,7 @@ export default function Layout({ children, breadcrumbs = [] }) {
             <AppSidebar />
             <SidebarInset className="bg-app-background">
                 <TopBar breadcrumbs={breadcrumbs} />
-                <div className="flex flex-1 flex-col gap-5 px-8 py-6">
+                <div className="flex flex-1 flex-col gap-8 px-10 py-10">
                     {children}
                 </div>
             </SidebarInset>

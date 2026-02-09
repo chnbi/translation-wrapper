@@ -84,7 +84,7 @@ export default function AuditLogsSection() {
     ]
 
     return (
-        <div className="space-y-3">
+        <div id="audit-trail" className="space-y-3 pt-6">
             <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wide">Audit Trail</h2>
             <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 overflow-hidden">
                 {/* Header Row */}

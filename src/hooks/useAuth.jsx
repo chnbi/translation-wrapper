@@ -3,9 +3,11 @@ import { useState, useEffect, useContext, createContext, useCallback } from 'rea
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
     signOut as firebaseSignOut
 } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { getUser } from '../api/firebase/roles'; // For fetching user role from Firestore
 import { ROLES, canDo as checkPermission, getRoleLabel, getRoleColor } from '../lib/permissions';
 
@@ -14,23 +16,29 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [userRole, setUserRole] = useState(ROLES.EDITOR);
+    const [userLanguages, setUserLanguages] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Load user role from Firestore
-    const loadUserRole = useCallback(async (uid) => {
+    // Load user role and profile from Firestore
+    const loadUserProfile = useCallback(async (uid) => {
         if (!uid) {
             setUserRole(ROLES.EDITOR);
+            setUserLanguages([]);
             return;
         }
 
         try {
             const userDoc = await getUser(uid);
             const role = userDoc?.role || ROLES.EDITOR;
+            const languages = userDoc?.languages || [];
+
             setUserRole(role);
-            console.log('[Firebase] User role loaded:', role);
+            setUserLanguages(languages);
+            console.log('[Firebase] User profile loaded:', { role, languages });
         } catch (error) {
-            console.error('[Firebase] Error loading user role:', error);
+            console.error('[Firebase] Error loading user profile:', error);
             setUserRole(ROLES.EDITOR);
+            setUserLanguages([]);
         }
     }, []);
 
@@ -44,16 +52,17 @@ export function AuthProvider({ children }) {
                     name: authUser.displayName || authUser.email.split('@')[0],
                     avatar: authUser.photoURL
                 });
-                await loadUserRole(authUser.uid);
+                await loadUserProfile(authUser.uid);
             } else {
                 setUser(null);
                 setUserRole(ROLES.EDITOR);
+                setUserLanguages([]);
             }
-            setLoading(false);
+            loading && setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [loadUserRole]);
+    }, [loadUserProfile]); // loading dependency removed to avoid loops
 
     const signIn = async (email, password) => {
         try {
@@ -63,6 +72,29 @@ export function AuthProvider({ children }) {
         } catch (error) {
             console.error('Sign in error:', error);
             // Throw existing error for UI handling
+            throw error;
+        }
+    };
+
+    const signUp = async (email, password, userData) => {
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            // Create user profile in Firestore
+            await setDoc(doc(db, 'users', user.uid), {
+                email: user.email,
+                role: userData.role || ROLES.EDITOR,
+                languages: userData.languages || [],
+                createdAt: new Date().toISOString(),
+                // Default avatar if needed
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email)}&background=random`
+            });
+
+            console.log('[Firebase] User signed up:', user.email);
+            return user;
+        } catch (error) {
+            console.error('Sign up error:', error);
             throw error;
         }
     };
@@ -79,6 +111,7 @@ export function AuthProvider({ children }) {
             await firebaseSignOut(auth);
             setUser(null);
             setUserRole(ROLES.EDITOR);
+            setUserLanguages([]);
             console.log('[Firebase] User signed out');
             // Reload not strictly necessary with Firebase listener, but good for clearing state
             window.location.reload();
@@ -96,8 +129,10 @@ export function AuthProvider({ children }) {
     const value = {
         user,
         role: userRole,
+        languages: userLanguages,
         loading,
         signIn,
+        signUp,
         signInWithOAuth,
         signOut,
         canDo,

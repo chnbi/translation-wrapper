@@ -8,6 +8,9 @@ import UserManagementDialog from "@/components/dialogs/UserManagementDialog"
 import ChangePasswordDialog from "@/components/dialogs/ChangePasswordDialog"
 import { toast } from "sonner"
 import { getUserApiKeys, saveUserApiKeys } from "@/api/firebase/apiKeys"
+import { updateUserLanguages } from "@/api/firebase/roles"
+import { LANGUAGES } from "@/lib/constants"
+import { ROLES } from "@/hooks/useAuth"
 
 import AuditLogsSection from "@/components/AuditLogsSection"
 import { PageContainer } from "@/components/ui/shared"
@@ -45,6 +48,45 @@ export default function Settings() {
     const [showKeys, setShowKeys] = useState({ gemini: false, ilmuchat: false })
     const [savingKeys, setSavingKeys] = useState(false)
 
+    // Manager Settings State
+    const [managerLangs, setManagerLangs] = useState([])
+    const [savingLangs, setSavingLangs] = useState(false)
+
+    // Initialize manager languages from auth context
+    useEffect(() => {
+        if (user?.languages) {
+            setManagerLangs(user.languages)
+        }
+    }, [user?.languages])
+
+    const handleSaveLanguages = async () => {
+        if (!user?.id) return
+        setSavingLangs(true)
+        try {
+            await updateUserLanguages(user.id, managerLangs)
+            toast.success('Manager languages updated')
+            // Optimistically update or wait for auth listener? 
+            // Auth listener should pick it up if it listens to doc changes, 
+            // but useAuth currently fetches on mount/auth-change. 
+            // Might need to reload page or trigger re-fetch.
+            // For now, simple success message.
+            setTimeout(() => window.location.reload(), 1000)
+        } catch (error) {
+            console.error(error)
+            toast.error('Failed to update languages')
+        } finally {
+            setSavingLangs(false)
+        }
+    }
+
+    const toggleManagerLang = (code) => {
+        if (managerLangs.includes(code)) {
+            setManagerLangs(prev => prev.filter(c => c !== code))
+        } else {
+            setManagerLangs(prev => [...prev, code])
+        }
+    }
+
     // Load user's API keys on mount
     useEffect(() => {
         async function loadKeys() {
@@ -58,6 +100,32 @@ export default function Settings() {
         }
         loadKeys()
     }, [user?.id])
+
+    // Scroll to section based on URL query param (e.g. #settings?section=security)
+    useEffect(() => {
+        const handleScrollToSection = () => {
+            const hash = window.location.hash
+            if (hash.includes('?section=')) {
+                const sectionId = hash.split('?section=')[1]
+                if (sectionId) {
+                    const element = document.getElementById(sectionId)
+                    if (element) {
+                        setTimeout(() => {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            // Optional: Highlight effect?
+                        }, 100)
+                    }
+                }
+            }
+        }
+
+        // Run on mount
+        handleScrollToSection()
+
+        // Listen for hash changes (if user clicks sidebar links while on settings page)
+        window.addEventListener('hashchange', handleScrollToSection)
+        return () => window.removeEventListener('hashchange', handleScrollToSection)
+    }, [])
 
     const handleSaveApiKeys = async () => {
         if (!user?.id) {
@@ -90,7 +158,7 @@ export default function Settings() {
                 </div>
             </div>
 
-            <div className="space-y-3">
+            <div id="security" className="space-y-3">
                 <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Security</h2>
                 <div className="rounded-2xl bg-card border border-border">
                     <button
@@ -114,8 +182,8 @@ export default function Settings() {
             </div>
 
             {/* AI Provider Settings */}
-            <div className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">AI Provider</h2>
+            <div id="api-configuration" className="space-y-3 pt-6">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">API Configuration</h2>
                 <div className="rounded-2xl bg-card border border-border p-6">
                     <div className="flex items-center justify-between gap-4 mb-4">
                         <div className="flex items-center gap-4">
@@ -153,7 +221,13 @@ export default function Settings() {
                             onClick={async () => {
                                 const toastId = toast.loading("Testing connection...")
                                 try {
-                                    const { getAI } = await import('@/api/ai')
+                                    const { getAI, AIService } = await import('@/api/ai')
+
+                                    // Apply user API key if available
+                                    if (user?.id) {
+                                        await AIService.applyUserApiKey(user.id)
+                                    }
+
                                     const ai = getAI()
                                     const res = await ai.testConnection()
 
@@ -238,9 +312,58 @@ export default function Settings() {
                 </div>
             </div>
 
+            {/* Manager Profile Settings */}
+            {canDo('manage_projects') && ( // Managers and Admins
+                <div id="manager-profile" className="space-y-3 pt-6">
+                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Manager Profile</h2>
+                    <div className="rounded-2xl bg-card border border-border p-6">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <User className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-foreground">Approving Languages</h3>
+                                <p className="text-sm text-muted-foreground">Select the languages you are responsible for approving.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                            {Object.values(LANGUAGES).map(lang => {
+                                const isSelected = managerLangs.includes(lang.code)
+                                return (
+                                    <button
+                                        key={lang.code}
+                                        onClick={() => toggleManagerLang(lang.code)}
+                                        className={`
+                                            flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all
+                                            ${isSelected
+                                                ? 'bg-primary/5 border-primary text-primary font-medium'
+                                                : 'bg-background border-border text-muted-foreground hover:bg-muted/50'
+                                            }
+                                        `}
+                                    >
+                                        <span>{lang.label}</span>
+                                        {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        <Button
+                            onClick={handleSaveLanguages}
+                            disabled={savingLangs}
+                            className="w-full sm:w-auto"
+                        >
+                            <Save className="w-4 h-4 mr-2" />
+                            {savingLangs ? 'Saving...' : 'Save Preferences'}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Admin/Manager Settings */}
             {canDo('manage_users') && (
-                <div className="space-y-3">
+                <div id="administration" className="space-y-3 pt-6">
                     <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Administration</h2>
                     <div className="rounded-2xl bg-card border border-border divide-y divide-border">
                         {adminSections.map((section) => {
@@ -279,10 +402,13 @@ export default function Settings() {
             )}
 
             {/* Account Info */}
-            <div className="rounded-2xl p-5 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-800">
-                <p className="text-xs text-zinc-400">
-                    Logged in as <span className="text-zinc-600 dark:text-zinc-300 font-medium">{user?.email || 'Not logged in'}</span>
-                </p>
+            <div id="account" className="space-y-3 pt-6">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Account</h2>
+                <div className="rounded-2xl p-5 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-100 dark:border-zinc-800">
+                    <p className="text-xs text-zinc-400">
+                        Logged in as <span className="text-zinc-600 dark:text-zinc-300 font-medium">{user?.email || 'Not logged in'}</span>
+                    </p>
+                </div>
             </div>
 
             <ManageCategoriesDialog

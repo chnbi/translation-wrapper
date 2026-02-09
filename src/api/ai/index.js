@@ -25,7 +25,7 @@ export const AIService = (() => {
     const createInstance = (providerName) => {
         const Provider = PROVIDERS[providerName];
         if (!Provider) {
-            console.warn(`⚠️ [AIService] Unknown provider: ${providerName}, falling back to gemini`);
+            console.warn(`[AIService] Unknown provider: ${providerName}, falling back to gemini`);
             return new GeminiProvider();
         }
         return new Provider();
@@ -51,7 +51,7 @@ export const AIService = (() => {
         setProvider: (providerName) => {
             if (PROVIDERS[providerName]) {
                 currentProvider = providerName;
-                console.log(`🔄 [AIService] Switched to: ${providerName}`);
+                // Provider switched
             }
         },
 

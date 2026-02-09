@@ -26,7 +26,8 @@ import {
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { getStatusConfig, LANGUAGES } from "@/lib/constants"
 
-import { ConfirmDialog, ProjectSettingsDialog } from "@/components/dialogs"
+import { ConfirmDialog, ProjectSettingsDialog, SendForReviewDialog } from "@/components/dialogs"
+import { getUsers } from "@/api/firebase"
 import { GlossaryHighlighter } from "@/components/ui/GlossaryHighlighter"
 import { ExportMenu } from "@/components/project"
 import Pagination from "@/components/Pagination"
@@ -55,7 +56,7 @@ export default function ProjectView({ projectId }) {
     } = useProjects()
 
     const { templates } = usePrompts()
-    const { terms: glossaryTerms } = useGlossary()
+    const { approvedTerms: glossaryTerms } = useGlossary() // Use APPOVED terms for highlighting
     const { canDo } = useAuth()
     const { markAsViewed, isRowNew } = useApprovalNotifications()
 
@@ -72,6 +73,13 @@ export default function ProjectView({ projectId }) {
     const [duplicateConfirm, setDuplicateConfirm] = useState(null) // { row: object, duplicate: object }
     const [editingRowId, setEditingRowId] = useState(null) // Row being edited inline
     const [editingRowData, setEditingRowData] = useState(null) // Data for row being edited
+
+    const [editWarning, setEditWarning] = useState(null) // { open: boolean, row: object }
+
+    // Manager Assignment
+    const [sendForReviewOpen, setSendForReviewOpen] = useState(false)
+    const [managers, setManagers] = useState([])
+    const [rowsToSend, setRowsToSend] = useState([]) // Store rows to send temporarily
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
@@ -472,9 +480,17 @@ export default function ProjectView({ projectId }) {
     }
 
     // Edit Row Handlers
-    const handleStartEdit = (row) => {
+    const startEditing = (row) => {
         setEditingRowId(row.id)
         setEditingRowData({ ...row })
+    }
+
+    const handleStartEdit = (row) => {
+        if (row.status === 'approved') {
+            setEditWarning({ open: true, row })
+            return
+        }
+        startEditing(row)
     }
 
     const handleCancelEdit = () => {
@@ -492,8 +508,8 @@ export default function ProjectView({ projectId }) {
                 updatedTranslations[lang] = {
                     ...(updatedTranslations[lang] || {}),
                     text: editingRowData[lang] || '',
-                    // Keep existing status or default to draft
-                    status: updatedTranslations[lang]?.status || 'draft'
+                    // Reset to draft if edited
+                    status: 'draft'
                 }
             })
 
@@ -501,6 +517,7 @@ export default function ProjectView({ projectId }) {
                 source_text: editingRowData.en,
                 en: editingRowData.en, // Legacy field
                 translations: updatedTranslations,
+                status: 'draft', // Reset row status
                 // Also write legacy fields for compatibility
                 ...Object.fromEntries(targetLanguages.map(lang => [lang, editingRowData[lang] || '']))
             })
@@ -525,36 +542,80 @@ export default function ProjectView({ projectId }) {
     // Send selected rows for review
     // Send rows for review
     const handleSendForReview = async () => {
-        let rowsToSend = []
+        let candidates = []
 
         if (selectedCount > 0) {
-            rowsToSend = rows.filter(row => selectedRowIds.has(row.id))
+            candidates = rows.filter(row => selectedRowIds.has(row.id))
         } else {
-            rowsToSend = rows.filter(r => r.status !== 'review' && r.status !== 'approved')
-            // If everything is already completed, maybe user wants to re-approve rejected ones? 
-            // Logic: send anything NOT approved.
-            if (rowsToSend.length === 0) {
-                rowsToSend = rows.filter(r => r.status !== 'approved')
+            candidates = rows.filter(r => r.status !== 'review' && r.status !== 'approved')
+            if (candidates.length === 0) {
+                candidates = rows.filter(r => r.status !== 'approved')
             }
         }
 
-        if (rowsToSend.length === 0) {
+        if (candidates.length === 0) {
             toast.error('No eligible rows to send for review')
             return
         }
 
+        // Store rows and fetch managers, then open dialog
+        setRowsToSend(candidates)
 
-
-        let successCount = 0
-        for (const row of rowsToSend) {
-            if (row.status !== 'review') {
-                await updateProjectRow(id, row.id, { status: 'review' })
-                successCount++
+        // Fetch managers if not loaded
+        if (managers.length === 0) {
+            try {
+                const allUsers = await getUsers()
+                const mgrs = allUsers.filter(u => u.role === 'manager')
+                setManagers(mgrs)
+            } catch (error) {
+                console.error("Failed to load managers", error)
+                toast.error("Failed to load managers checklist")
             }
         }
 
-        deselectAllRows(id)
-        toast.success(`Sent ${successCount || rowsToSend.length} rows for review`)
+        setSendForReviewOpen(true)
+    }
+
+    const handleConfirmSendForReview = async (assignments) => {
+        let successCount = 0
+        const loadingToast = toast.loading("Assigning managers...")
+
+        try {
+            for (const row of rowsToSend) {
+                const updates = {
+                    status: 'review',
+                    translations: row.translations || {}
+                }
+
+                // Apply assignment to each target language
+                targetLanguages.forEach(lang => {
+                    const managerId = assignments[lang]
+                    if (managerId) {
+                        if (!updates.translations[lang]) updates.translations[lang] = {}
+
+                        updates.translations[lang] = {
+                            ...(updates.translations[lang] || {}),
+                            text: updates.translations[lang].text || row[lang] || '', // Ensure text is preserved if object created
+                            status: 'review',
+                            assignedManagerId: managerId,
+                            assignedAt: new Date().toISOString()
+                        }
+                    }
+                })
+
+                await updateProjectRow(id, row.id, updates)
+                successCount++
+            }
+
+            deselectAllRows(id)
+            setSendForReviewOpen(false)
+            toast.dismiss(loadingToast)
+            toast.success(`Sent ${successCount} rows for review with assignments`)
+        } catch (error) {
+            console.error(error)
+            toast.dismiss(loadingToast)
+            toast.error("Failed to send for review")
+        }
     }
 
     // Translation handler
@@ -733,19 +794,22 @@ export default function ProjectView({ projectId }) {
             render: row => {
                 if (row.id === editingRowId) {
                     return (
-                        <Textarea
-                            value={editingRowData?.en || editingRowData?.text || ''}
-                            onChange={(e) => setEditingRowData(prev => ({ ...prev, en: e.target.value }))}
-                            onKeyDown={handleEditKeyDown}
-                            className="min-h-[80px] bg-white resize-y"
-                            autoFocus
-                        />
+                        <div className="relative w-full h-full min-h-[80px]">
+                            <Textarea
+                                value={editingRowData?.en || editingRowData?.text || ''}
+                                onChange={(e) => setEditingRowData(prev => ({ ...prev, en: e.target.value }))}
+                                onKeyDown={handleEditKeyDown}
+                                className="w-full h-full min-h-[80px] bg-white resize-y p-3 rounded-lg border border-primary/40 focus:border-primary focus:ring-4 focus:ring-primary/10 shadow-sm transition-all"
+                                placeholder="Enter source text..."
+                                autoFocus
+                            />
+                        </div>
                     )
                 }
                 return (
                     <div className="whitespace-pre-wrap">
                         <GlossaryHighlighter
-                            text={row.en || row.text || ''}
+                            text={row.source_text || row.en || row.text || ''}
                             language="en"
                             glossaryTerms={glossaryTerms}
                         />
@@ -764,12 +828,16 @@ export default function ProjectView({ projectId }) {
                 // For editing, use flat data structure
                 if (row.id === editingRowId) {
                     return (
-                        <Textarea
-                            value={editingRowData?.[langCode] || ''}
-                            onChange={(e) => setEditingRowData(prev => ({ ...prev, [langCode]: e.target.value }))}
-                            onKeyDown={handleEditKeyDown}
-                            className="min-h-[80px] bg-white resize-y"
-                        />
+                        <div className="relative w-full h-full min-h-[80px]">
+                            <Textarea
+                                value={editingRowData?.[langCode] || ''}
+                                onChange={(e) => setEditingRowData(prev => ({ ...prev, [langCode]: e.target.value }))}
+                                onKeyDown={handleEditKeyDown}
+                                className="w-full h-full min-h-[80px] bg-white resize-y p-3 rounded-lg border border-primary/40 focus:border-primary focus:ring-4 focus:ring-primary/10 shadow-sm transition-all"
+                                placeholder="Enter translation..."
+                                autoFocus
+                            />
+                        </div>
                     )
                 }
                 // Read from translations JSON first, fallback to legacy field
@@ -856,7 +924,7 @@ export default function ProjectView({ projectId }) {
             render: (row) => {
                 if (row.id === editingRowId) {
                     return (
-                        <div className="flex flex-col gap-1 items-center justify-center">
+                        <div className="flex flex-col gap-3 items-center justify-center">
                             <button
                                 onClick={handleSaveEdit}
                                 className="text-xs bg-emerald-500 text-white px-2 py-1 rounded hover:bg-emerald-600"
@@ -914,7 +982,7 @@ export default function ProjectView({ projectId }) {
             />
 
             {/* Page Title - Static */}
-            <PageHeader description="Manage your project translations and pages">{currentTitle}</PageHeader>
+            <PageHeader description={project?.description || "Manage your project translations and pages"}>{currentTitle}</PageHeader>
 
             {/* Action Bar */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 py-4 min-h-[80px]">
@@ -960,11 +1028,7 @@ export default function ProjectView({ projectId }) {
                         </PillButton>
                     )}
 
-                    <TableActionButton
-                        icon={FileSpreadsheet}
-                        label="Settings"
-                        onClick={() => setIsSettingsOpen(true)}
-                    />
+
 
                     {/* Selection Actions */}
                     {hasSelection && (
@@ -1014,7 +1078,7 @@ export default function ProjectView({ projectId }) {
                     {/* Check if we need Translate button (No Selection, Not all translated) */}
                     {hasFilteredRows && !hasSelection && !allFilled && (
                         <PrimaryButton
-                            className="h-8 text-xs px-4 bg-blue-600 hover:bg-blue-700 ml-2"
+                            className="h-8 text-xs px-4 bg-blue-600 hover:bg-blue-700"
                             onClick={handleTranslateAll}
                             disabled={isTranslating}
                         >
@@ -1029,7 +1093,7 @@ export default function ProjectView({ projectId }) {
                     {/* Send for Review (No Selection) - if translated but not approved */}
                     {hasFilteredRows && !hasSelection && allTranslated && !allApproved && (
                         <PrimaryButton
-                            className="h-8 text-xs px-4 ml-2"
+                            className="h-8 text-xs px-4"
                             onClick={handleSendForReview}
                             disabled={isTranslating}
                         >
@@ -1180,6 +1244,14 @@ export default function ProjectView({ projectId }) {
                 message={`A row with similar content already exists: "${duplicateConfirm?.duplicate?.en?.substring(0, 50)}..."\n\nDo you want to add this row anyway?`}
                 confirmLabel="Add Anyway"
                 variant="default"
+            />
+
+            <SendForReviewDialog
+                open={sendForReviewOpen}
+                onOpenChange={setSendForReviewOpen}
+                onConfirm={handleConfirmSendForReview}
+                targetLanguages={targetLanguages}
+                managers={managers}
             />
         </PageContainer>
     )

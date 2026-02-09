@@ -23,7 +23,7 @@ export class GeminiProvider extends BaseAIProvider {
      */
     initialize() {
         if (!this.apiKey) {
-            console.warn('❌ [Gemini] No API Key found');
+            console.warn('[Gemini] No API Key found');
             return false;
         }
         this.client = new GoogleGenAI({ apiKey: this.apiKey });
@@ -38,7 +38,6 @@ export class GeminiProvider extends BaseAIProvider {
         if (newApiKey && newApiKey !== this.apiKey) {
             this.apiKey = newApiKey;
             this.client = new GoogleGenAI({ apiKey: this.apiKey });
-            console.log('🔑 [Gemini] API key updated');
         }
     }
 
@@ -61,7 +60,7 @@ export class GeminiProvider extends BaseAIProvider {
             glossaryTerms = []
         } = options;
 
-        console.log('🚀 [Gemini] Batch Request:', { count: items.length, targets: targetLanguages });
+        // Debug logging removed for production
 
         try {
             // 1. Prepare Prompt
@@ -84,7 +83,7 @@ export class GeminiProvider extends BaseAIProvider {
      */
     async extractTextFromImage(imageFile) {
         this._validateConfig();
-        console.log(`🚀 [Gemini] Extracting text from image: ${imageFile.name}`);
+        // OCR extraction
 
         try {
             const imagePart = await this._fileToGenerativePart(imageFile);
@@ -106,7 +105,7 @@ export class GeminiProvider extends BaseAIProvider {
      */
     async extractAndTranslate(imageFile, targetLanguages = ['my', 'zh'], glossaryTerms = []) {
         this._validateConfig();
-        console.log(`🚀 [Gemini] OCR + Translate: ${imageFile.name}`);
+        // OCR + Translation
 
         try {
             const imagePart = await this._fileToGenerativePart(imageFile);
@@ -140,7 +139,20 @@ Return a valid JSON array where each item has:
                 model: this.model,
                 contents: "Say 'OK'",
             });
-            return { success: true, message: res.text() };
+
+            // Handle different SDK response structures
+            let text = '';
+            if (typeof res?.text === 'function') {
+                text = res.text();
+            } else if (typeof res?.response?.text === 'function') {
+                text = res.response.text();
+            } else if (typeof res?.candidates?.[0]?.content?.parts?.[0]?.text === 'string') {
+                text = res.candidates[0].content.parts[0].text;
+            } else {
+                text = 'Connected (response format unknown)';
+            }
+
+            return { success: true, message: text };
         } catch (e) {
             return { success: false, message: e.message };
         }
@@ -156,26 +168,26 @@ Return a valid JSON array where each item has:
     }
 
     async _executeGenAI(contents) {
-        const start = Date.now();
         const result = await this.client.models.generateContent({
             model: this.model,
             contents: contents,
         });
-        const duration = Date.now() - start;
-        console.log(`✅ [Gemini] Response in ${duration}ms`);
 
-        if (result.response && typeof result.response.text === 'function') {
+        // Handle different SDK response structures
+        if (typeof result?.text === 'function') {
+            return result.text();
+        } else if (typeof result?.response?.text === 'function') {
             return result.response.text();
-        } else if (result && typeof result.text === 'function') {
-            return result.text(); // Handle updated SDK structure
+        } else if (typeof result?.candidates?.[0]?.content?.parts?.[0]?.text === 'string') {
+            return result.candidates[0].content.parts[0].text;
         } else {
-            console.error('❌ [Gemini] Unexpected response structure:', result);
+            console.error('[Gemini] Unexpected response structure');
             throw new Error('AI_INVALID_RESPONSE_STRUCTURE');
         }
     }
 
     _handleError(error) {
-        console.error('❌ [Gemini] Error:', error);
+        console.error('[Gemini] Error:', error.message || error);
         if (error.status === 429) throw new Error('RATE_LIMIT');
         throw error;
     }

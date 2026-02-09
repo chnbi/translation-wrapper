@@ -11,8 +11,12 @@ import { toast } from "sonner"
 import { useAuth } from "@/App"
 import { LANGUAGES, getLanguageLabel } from "@/lib/constants"
 
+import { ReassignManagerDialog } from "@/components/dialogs/ReassignManagerDialog"
+import { getUsers } from "@/api/firebase/roles"
+import { UserPlus } from "lucide-react"
+
 export default function Approvals() {
-    const { isManager } = useAuth()
+    const { isManager, user, role } = useAuth()
     const { projects, getProjectPages, getPageRows, getProjectRows, updateProjectRow, recomputeProjectStats } = useProjects()
     const { terms: glossaryTerms, updateTerm: updateGlossaryTerm } = useGlossary()
     const [searchQuery, setSearchQuery] = useState("")
@@ -30,6 +34,21 @@ export default function Approvals() {
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage, setItemsPerPage] = useState(25)
+
+    // Reassign Dialog State
+    const [reassignOpen, setReassignOpen] = useState(false)
+    const [reassignData, setReassignData] = useState(null) // { rowId, lang, currentManagerId }
+    const [managers, setManagers] = useState([])
+
+    // Load managers on mount
+    useEffect(() => {
+        if (isManager) {
+            getUsers().then(users => {
+                const mgrs = users.filter(u => u.role === 'manager' || u.role === 'admin')
+                setManagers(mgrs)
+            })
+        }
+    }, [isManager])
 
     // Redirect Editors to Home
     useEffect(() => {
@@ -275,10 +294,36 @@ export default function Approvals() {
                 }, 500)
 
             } else {
-                // Glossary logic (Legacy single status for now)
-                // Or we could implement per-lang glossary approval later
-                // For now, approval applies to the term
-                toast.info("Glossary per-language approval coming soon")
+                // Glossary Approval Logic
+                const rowsToUpdate = Object.keys(localApprovals)
+                for (const termId of rowsToUpdate) {
+                    const updates = localApprovals[termId]
+                    // Glossary usually has one status for the whole term (for now)
+                    // If any lang is approved, we assume checking 'en' or global. 
+                    // But our UI allows per-lang. 
+                    // Simplified: If 'en' (or any) is set to 'approved', approve the term.
+                    // If 'rejected', set status 'draft' or 'review' with remark.
+
+                    // Since glossary structure is flat (status is on term), we take the first decision?
+                    // Let's assume the user uses the 'en' column or similar to approve the TERM.
+                    // Actually, updateTerm takes a partial object.
+
+                    // Check if ANY lang is 'approved' -> Approve term
+                    // Check if ANY lang is 'rejected' -> Draft term
+
+                    const statuses = Object.values(updates)
+                    const isApproved = statuses.includes('approved')
+                    const isRejected = statuses.includes('rejected')
+
+                    let newStatus = 'review'
+                    if (isApproved) newStatus = 'approved'
+                    if (isRejected) newStatus = 'draft' // Send back to draft
+
+                    await updateGlossaryTerm(termId, {
+                        status: newStatus
+                    })
+                }
+                toast.success("Glossary terms updated")
             }
 
             toast.success("Changes saved successfully")
@@ -291,20 +336,67 @@ export default function Approvals() {
         }
     }
 
+    // Filter rows based on manager assignment & languages
+    const filteredProjectReviewRows = useMemo(() => {
+        if (!isManager || !projectReviewRows.length) return []
+
+        // Admins see everything
+        if (role === 'admin' || role === 'ADMIN') return projectReviewRows
+
+        const myLanguages = user?.languages || []
+        const hasLanguageRestriction = myLanguages.length > 0
+
+        return projectReviewRows.filter(row => {
+            const translations = row.translations || {}
+
+            // Logic: Show row if ANY target language is:
+            // 1. In my allowed languages (if restricted) AND
+            // 2. Unassigned OR Assigned to me
+
+            return row.targetLanguages.some(lang => {
+                // Check Language Restriction
+                if (hasLanguageRestriction && !myLanguages.includes(lang)) return false
+
+                const t = translations[lang] || {}
+                const assignee = t.assignedManagerId
+
+                // Check Assignment (Must be unassigned or assigned to me)
+                if (assignee && assignee !== user?.id) return false
+
+                // Check Status (Must be pending action)
+                // If I approved it or rejected it, I don't need to see it until it comes back
+                if (t.status === 'approved' || t.status === 'changes') return false
+
+                return true
+            })
+        })
+    }, [projectReviewRows, isManager, role, user?.id, user?.languages])
+
     // Dynamic Columns Building
     // 1. Identify all unique target languages present in the visible rows
+    // 2. Filter columns by my languages as well
+    // 3. Filter columns if ALL items in that column are assigned to someone else
     const uniqueTargetLanguages = useMemo(() => {
         const langs = new Set()
-        projectReviewRows.forEach(row => {
-            (row.targetLanguages || []).forEach(l => langs.add(l))
+        const myLanguages = user?.languages || []
+        const hasLanguageRestriction = role !== 'admin' && role !== 'ADMIN' && myLanguages.length > 0
+
+
+        filteredProjectReviewRows.forEach(row => {
+            (row.targetLanguages || []).forEach(l => {
+                if (hasLanguageRestriction && !myLanguages.includes(l)) return
+                langs.add(l)
+            })
         })
-        // Always ensure we have at least the ones from constant if empty?
+
         if (langs.size === 0) {
-            langs.add('my')
-            langs.add('zh')
+            if (!hasLanguageRestriction) {
+                langs.add('my')
+                langs.add('zh')
+            }
         }
         return Array.from(langs)
-    }, [projectReviewRows])
+    }, [filteredProjectReviewRows, role, user?.languages])
 
     // Project Columns Definition
     const projectColumns = useMemo(() => [
@@ -342,14 +434,34 @@ export default function Approvals() {
                 const localStatus = localApprovals[row.id]?.[lang]
                 const currentStatus = localStatus || translation.status || 'draft'
 
-                // If this row doesn't target this language (unlikely if uniqueTargetLanguages is accurate)
-                // Check if row.targetLanguages includes this lang
+                const assignedTo = translation.assignedManagerId
+                const isAssignedToMe = !assignedTo || assignedTo === user?.id
+                // isManager is already true on this page. Allow review if: admin OR (manager AND assigned to me or unassigned)
+                const canReview = isManager && isAssignedToMe
+
+                // Extra check: If I'm restricted to languages, and this isn't one of them, hide it
+                // (Though column shouldn't exist ideally, but row might have it)
+                const myLanguages = user?.languages || []
+                const isMyLanguage = !myLanguages.length || myLanguages.includes(lang) || role === 'admin'
+
+                // If this row doesn't target this language
                 if (row.targetLanguages && !row.targetLanguages.includes(lang)) {
                     return <span className="text-slate-300 text-xs">—</span>
                 }
 
+                // If assigned to other, HIDE content as per request
+                if (assignedTo && assignedTo !== user?.id && role !== 'admin') {
+                    return <div className="h-full flex items-center"><span className="text-slate-200 text-xs italic">Assigned to other</span></div>
+                    // return <span className="text-slate-300 text-xs">—</span>
+                }
+
+                // If language not allowed
+                if (!isMyLanguage) {
+                    return <span className="text-slate-300 text-xs">—</span>
+                }
+
                 return (
-                    <div className="flex flex-col gap-2 group">
+                    <div className={`flex flex-col gap-2 group ${!canReview ? 'opacity-60' : ''}`}>
                         <div className="text-sm text-slate-700 min-h-[20px]">
                             {translation.text || <span className="text-slate-300 italic">Empty</span>}
                         </div>
@@ -357,62 +469,102 @@ export default function Approvals() {
                         {/* Status / Actions Bar */}
                         <div className="flex items-center justify-between mt-1">
                             {/* Status Indicator */}
-                            {(currentStatus === 'approved') && (
-                                <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-emerald-100">
-                                    <Check className="w-3 h-3" /> Approved
-                                </div>
-                            )}
-                            {(currentStatus === 'rejected' || currentStatus === 'changes') && (
-                                <div className="flex items-center gap-1.5 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-rose-100">
-                                    <X className="w-3 h-3" /> Changes
-                                </div>
-                            )}
-                            {(currentStatus !== 'approved' && currentStatus !== 'rejected' && currentStatus !== 'changes') && (
-                                <div className="text-[11px] text-slate-400 font-medium">
-                                    Pending
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {(currentStatus === 'approved') && (
+                                    <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-emerald-100">
+                                        <Check className="w-3 h-3" /> Approved
+                                    </div>
+                                )}
+                                {(currentStatus === 'rejected' || currentStatus === 'changes') && (
+                                    <div className="flex items-center gap-1.5 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[11px] font-medium border border-rose-100">
+                                        <X className="w-3 h-3" /> Changes
+                                    </div>
+                                )}
+                                {(currentStatus !== 'approved' && currentStatus !== 'rejected' && currentStatus !== 'changes') && (
+                                    <div className="text-[11px] text-slate-400 font-medium">
+                                        Pending
+                                    </div>
+                                )}
 
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-1 opacity-100 transition-opacity">
-                                {/* Always visible for easier access, or use opacity-0 group-hover:opacity-100 */}
-
-                                {localStatus ? (
-                                    <button
-                                        onClick={() => {
-                                            const newMap = { ...localApprovals[row.id] }
-                                            delete newMap[lang]
-                                            setLocalApprovals(prev => ({ ...prev, [row.id]: newMap }))
-                                            // Also clear remark?
-                                        }}
-                                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
-                                        title="Undo"
-                                    >
-                                        <Undo2 className="w-4 h-4" />
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={() => updateLocalStatus(row.id, lang, 'approved')}
-                                            className="p-1 hover:bg-emerald-100 rounded text-slate-300 hover:text-emerald-600 transition-colors"
-                                            title="Approve"
-                                        >
-                                            <Check className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => updateLocalStatus(row.id, lang, 'rejected')}
-                                            className="p-1 hover:bg-rose-100 rounded text-slate-300 hover:text-rose-600 transition-colors"
-                                            title="Request Changes"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </>
+                                {/* Assignment Badge */}
+                                {!canReview && (
+                                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
+                                        Other Manager
+                                    </span>
                                 )}
                             </div>
+
+                            {/* Action Buttons */}
+                            {canReview && (
+                                <div className="flex items-center gap-1 opacity-100 transition-opacity">
+                                    {localStatus ? (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    setReassignData({
+                                                        rowId: row.id,
+                                                        lang: lang,
+                                                        currentManagerId: translation.assignedManagerId,
+                                                        projectId: row.projectId
+                                                    })
+                                                    setReassignOpen(true)
+                                                }}
+                                                className="p-1 hover:bg-blue-50 rounded text-slate-300 hover:text-blue-600 transition-colors"
+                                                title="Reassign"
+                                            >
+                                                <UserPlus className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const newMap = { ...localApprovals[row.id] }
+                                                    delete newMap[lang]
+                                                    setLocalApprovals(prev => ({ ...prev, [row.id]: newMap }))
+                                                }}
+                                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+                                                title="Undo"
+                                            >
+                                                <Undo2 className="w-4 h-4" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    setReassignData({
+                                                        rowId: row.id,
+                                                        lang: lang,
+                                                        currentManagerId: translation.assignedManagerId,
+                                                        projectId: row.projectId
+                                                    })
+                                                    setReassignOpen(true)
+                                                }}
+                                                className="p-1 hover:bg-blue-50 rounded text-slate-300 hover:text-blue-600 transition-colors"
+                                                title="Reassign"
+                                            >
+                                                <UserPlus className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => updateLocalStatus(row.id, lang, 'approved')}
+                                                className="p-1 hover:bg-emerald-100 rounded text-slate-300 hover:text-emerald-600 transition-colors"
+                                                title="Approve"
+                                            >
+                                                <Check className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => updateLocalStatus(row.id, lang, 'rejected')}
+                                                className="p-1 hover:bg-rose-100 rounded text-slate-300 hover:text-rose-600 transition-colors"
+                                                title="Request Changes"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Remark Input if Rejected */}
-                        {(currentStatus === 'rejected' || currentStatus === 'changes') && (
+                        {canReview && (currentStatus === 'rejected' || currentStatus === 'changes') && (
                             <input
                                 type="text"
                                 placeholder="Reason for changes..."
@@ -425,17 +577,57 @@ export default function Approvals() {
                 )
             }
         }))
-    ], [uniqueTargetLanguages, localApprovals, localRemarks, projectReviewRows]) // Add deps
+    ], [uniqueTargetLanguages, localApprovals, localRemarks, filteredProjectReviewRows, user, role]) // Add deps
 
-    // Legacy Glossary Columns (unchanged for now)
     const glossaryColumns = [
-        { header: "English", accessor: "en", width: "30%" },
-        { header: "Bahasa Malaysia", accessor: "my", width: "30%" },
-        { header: "Chinese", accessor: "cn", width: "30%" },
+        { header: "English", accessor: "en", width: "25%" },
+        { header: "Bahasa Malaysia", accessor: "my", width: "25%" },
+        { header: "Chinese", accessor: "cn", width: "25%" },
         {
-            header: "Status",
-            accessor: "status",
-            render: () => <span className="text-xs text-slate-400">Legacy</span>
+            header: "Actions",
+            accessor: "actions",
+            width: "25%",
+            render: (row) => {
+                const localStatus = localApprovals[row.id]?.['en'] // Use 'en' as proxy for term status
+                const currentStatus = localStatus || row.status
+
+                return (
+                    <div className="flex items-center gap-2">
+                        {localStatus ? (
+                            <button
+                                onClick={() => {
+                                    const newMap = { ...localApprovals[row.id] }
+                                    delete newMap['en']
+                                    setLocalApprovals(prev => ({ ...prev, [row.id]: newMap }))
+                                }}
+                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+                                title="Undo"
+                            >
+                                <Undo2 className="w-4 h-4" />
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => updateLocalStatus(row.id, 'en', 'approved')}
+                                    className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded border border-emerald-100 text-xs font-medium transition-colors"
+                                >
+                                    <Check className="w-3 h-3" /> Approve
+                                </button>
+                                <button
+                                    onClick={() => updateLocalStatus(row.id, 'en', 'rejected')}
+                                    className="flex items-center gap-1 px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded border border-rose-100 text-xs font-medium transition-colors"
+                                >
+                                    <X className="w-3 h-3" /> Reject
+                                </button>
+                            </>
+                        )}
+
+                        {/* Status Badge Preview */}
+                        {currentStatus === 'approved' && <span className="text-xs text-emerald-600 font-medium ml-2">Approved</span>}
+                        {(currentStatus === 'draft' || currentStatus === 'rejected') && <span className="text-xs text-rose-600 font-medium ml-2">Changes</span>}
+                    </div>
+                )
+            }
         }
     ]
 
@@ -523,6 +715,48 @@ export default function Approvals() {
                     )}
                 </>
             )}
+
+            <ReassignManagerDialog
+                open={reassignOpen}
+                onClose={() => setReassignOpen(false)}
+                onConfirm={async (newManagerId) => {
+                    if (!reassignData) return
+
+                    try {
+                        // We need to update the specific cell's assignedManagerId
+                        // We can use updateProjectRow
+                        const { rowId, lang, projectId } = reassignData
+                        const row = activeRows.find(r => r.id === rowId)
+                        if (!row) return
+
+                        const currentTranslations = row.translations || {}
+                        const newTranslations = {
+                            ...currentTranslations,
+                            [lang]: {
+                                ...(currentTranslations[lang] || { text: row[lang] || '' }),
+                                assignedManagerId: newManagerId
+                            }
+                        }
+
+                        await updateProjectRow(projectId, rowId, {
+                            translations: newTranslations
+                        })
+
+                        toast.success("Task reassigned successfully")
+                        setReassignOpen(false)
+                        setReassignData(null)
+
+                        // Force refresh logic if needed, but context subscription should handle it
+                    } catch (error) {
+                        console.error("Reassign error:", error)
+                        toast.error("Failed to reassign task")
+                    }
+                }}
+                managers={managers}
+                currentManagerId={reassignData?.currentManagerId}
+                targetLanguage={reassignData?.lang}
+                languageLabel={getLanguageLabel(reassignData?.lang)}
+            />
         </PageContainer>
     )
 }

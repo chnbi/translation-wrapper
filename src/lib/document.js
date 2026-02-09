@@ -1,13 +1,92 @@
 /**
  * Document Import/Export Utilities
- * Supports DOCX and PPTX file processing for translation workflows
+ * Supports DOCX, PPTX, and PDF file processing for translation workflows
  */
 import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from 'docx';
 import JSZip from 'jszip';
 import PptxGenJS from 'pptxgenjs';
 import { xml2js } from 'xml-js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { LANGUAGES } from '@/lib/constants';
+
+// Set worker source for PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+/**
+ * Parse a PDF file and extract text content
+ * @param {File} file - The PDF file to parse
+ * @returns {Promise<Object>} Parsed content with paragraphs
+ */
+export async function parsePdfFile(file) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            const entries = [];
+            let globalIndex = 0;
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+
+                // Group items by Y position to reconstruct lines/paragraphs roughly
+                const items = textContent.items;
+                // Simple extraction: join items with space, split by large gaps or y-diff
+                // For now, let's treat each item as a potential text run, 
+                // but PDF.js splits text weirdly.
+                // Better strategy: Join all strings, then split by double newline?
+                // Or jus dump all text and split by newlines if they exist.
+
+                // Let's try to reconstruct lines based on 'transform[5]' (y position)
+                // This is complex. MVP: Extract all non-empty strings.
+
+                let pageText = '';
+                let lastY = -1;
+
+                items.forEach(item => {
+                    if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 10) {
+                        pageText += '\n';
+                    } else if (lastY !== -1) {
+                        pageText += ' '; // Add space between words on same line
+                    }
+                    pageText += item.str;
+                    lastY = item.transform[5];
+                });
+
+                // Split into "paragraphs"
+                const paragraphs = pageText.split('\n').filter(line => line.trim().length > 0);
+
+                paragraphs.forEach(text => {
+                    if (text.trim()) {
+                        entries.push({
+                            id: `pdf_${Date.now()}_${globalIndex}`,
+                            en: text.trim(),
+                            order: globalIndex,
+                            context: `Page ${i}`,
+                            translations: {}
+                        });
+                        globalIndex++;
+                    }
+                });
+            }
+
+            resolve({
+                type: 'pdf',
+                name: file.name.replace('.pdf', ''),
+                entries,
+                raw: '',
+                html: ''
+            });
+
+        } catch (error) {
+            console.error('[PDF Parser] Error:', error);
+            reject(error);
+        }
+    });
+}
+
 
 /**
  * Parse a DOCX file and extract text content
@@ -401,13 +480,14 @@ export async function exportToPptx(rows, filename, options = {}) {
 /**
  * Detect file type from file extension
  * @param {File} file
- * @returns {'xlsx'|'docx'|'pptx'|'csv'|'unknown'}
+ * @returns {'xlsx'|'docx'|'pptx'|'pdf'|'csv'|'unknown'}
  */
 export function detectFileType(file) {
     const name = file.name.toLowerCase();
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) return 'xlsx';
     if (name.endsWith('.docx')) return 'docx';
     if (name.endsWith('.pptx')) return 'pptx';
+    if (name.endsWith('.pdf')) return 'pdf';
     if (name.endsWith('.csv')) return 'csv';
     return 'unknown';
 }
@@ -423,6 +503,8 @@ export async function parseFile(file) {
     switch (type) {
         case 'docx':
             return parseDocxFile(file);
+        case 'pdf':
+            return parsePdfFile(file);
         case 'xlsx':
         case 'xls':
         case 'csv':
@@ -435,3 +517,4 @@ export async function parseFile(file) {
             throw new Error(`Unsupported file type: ${file.name}`);
     }
 }
+

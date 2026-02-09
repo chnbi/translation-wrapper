@@ -25,31 +25,48 @@ export function findGlossaryMatches(text, glossaryTerms, languageCode) {
     const matches = []
 
     for (const term of glossaryTerms) {
-        const termValue = term[field]?.trim()
-        if (!termValue) continue
+        const targetValue = term[field]?.trim()
+        const sourceValue = term['en']?.trim()
 
-        // Word boundaries for EN, substring for others (ZH specifically, but also MY usually ok with boundaries but sometimes compounds)
-        // Quick Check logic used boundaries for EN/MY? No, `quick-check.jsx` used:
-        // const pattern = languageCode === 'zh' ? escapeRegex(termValue) : `\\b${escapeRegex(termValue)}\\b`
-        // We'll stick to that logic for consistency.
+        // Terms to check: Target term AND Source term (if different and not English column)
+        const termsToCheck = new Set()
+        if (targetValue) termsToCheck.add(targetValue)
+        if (languageCode !== 'en' && sourceValue) termsToCheck.add(sourceValue)
 
-        const pattern = languageCode === 'zh'
-            ? escapeRegex(termValue)
-            : `\\b${escapeRegex(termValue)}\\b`
+        for (const termValue of termsToCheck) {
+            let pattern
 
-        try {
-            const regex = new RegExp(pattern, languageCode === 'zh' ? 'g' : 'gi')
-            let match
-            while ((match = regex.exec(text)) !== null) {
-                matches.push({
-                    start: match.index,
-                    end: match.index + match[0].length,
-                    term: term,
-                    matchedText: match[0]
-                })
+            if (languageCode === 'zh') {
+                // Chinese: No word boundaries, just escape
+                pattern = escapeRegex(termValue)
+            } else {
+                // Others: Dynamic word boundaries
+                // If term starts with word char, add \b prefix
+                // If term ends with word char (and not symbol), add \b suffix
+                const isWordStart = /^\w/.test(termValue)
+                const isWordEnd = /\w$/.test(termValue)
+
+                pattern = ''
+                if (isWordStart) pattern += '\\b'
+                pattern += escapeRegex(termValue)
+                if (isWordEnd) pattern += '\\b'
             }
-        } catch (e) {
-            console.error('Invalid regex for term:', termValue)
+
+            try {
+                // ALWAYS use 'gi' for case insensitivity (even in Chinese, for English words mixed in)
+                const regex = new RegExp(pattern, 'gi')
+                let match
+                while ((match = regex.exec(text)) !== null) {
+                    matches.push({
+                        start: match.index,
+                        end: match.index + match[0].length,
+                        term: term,
+                        matchedText: match[0]
+                    })
+                }
+            } catch (e) {
+                console.error('Invalid regex for term:', termValue)
+            }
         }
     }
 
@@ -102,17 +119,17 @@ export function GlossaryHighlighter({ text, language, glossaryTerms, hoveredTerm
                 onMouseEnter={() => onHover && onHover(match.term.id)}
                 onMouseLeave={() => onHover && onHover(null)}
                 style={{
-                    color: COLORS.primary,
+                    color: 'hsl(329, 70%, 55%)', // Middle pink
                     fontWeight: 600,
-                    cursor: 'pointer',
+                    cursor: 'default',
                     backgroundColor: isHovered ? 'hsl(329, 100%, 96%)' : 'transparent',
                     borderRadius: '4px',
-                    padding: isHovered ? '0 2px' : 0,
-                    transition: 'background-color 0.15s ease',
-                    borderBottom: `1.5px dashed ${COLORS.light.darkGrey}`, // Visible dashed underline
-                    paddingBottom: '1px'
+                    paddingTop: 0,
+                    paddingLeft: isHovered ? '2px' : 0,
+                    paddingRight: isHovered ? '2px' : 0,
+                    paddingBottom: 0,
+                    transition: 'background-color 0.15s ease'
                 }}
-                title={`Glossary: ${match.term.english} = ${match.term.malay} / ${match.term.chinese}`}
             >
                 {match.matchedText}
             </span>
