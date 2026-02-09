@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './layout';
-import Dashboard from '../pages/Dashboard';
+import Dashboard from '../pages/Dashboard.jsx';
 import Glossary from '../pages/GlossaryLibrary';
 import PromptLibrary from '../pages/PromptLibrary';
 import Settings from '../pages/Settings';
