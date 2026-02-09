@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 
 // Queue configuration
-const BATCH_SIZE = 25
+const BATCH_SIZE = 10
 const THROTTLE_MS = 500
 
 /**

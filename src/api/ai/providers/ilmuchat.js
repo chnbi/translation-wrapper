@@ -20,8 +20,6 @@ export class ILMUchatProvider extends BaseAIProvider {
         // Get target URL from env or default
         const targetUrl = config.endpoint || import.meta.env.VITE_ILMUCHAT_ENDPOINT || 'https://api.ytlailabs.tech/preview/v1/chat/completions';
 
-        // Convert strict URL to proxy path for Vercel/Vite handling
-        // e.g. https://api.ytlailabs.tech/preview/v1/... -> /proxy/ilmuchat/preview/v1/...
         try {
             const urlObj = new URL(targetUrl);
             this.endpoint = `/proxy/ilmuchat${urlObj.pathname}`;

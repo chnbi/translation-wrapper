@@ -101,8 +101,12 @@ export default function ProjectView({ projectId }) {
     const fileInputRef = useRef(null)
 
     // Parse project ID and page ID from URL
+    // Parse project ID and page ID from URL
     const hashParts = window.location.hash.split('?')
-    const id = projectId || hashParts[0].split('/')[1]
+    const pathPart = hashParts[0].replace(/^#/, '')
+    const idFromUrl = pathPart.startsWith('project/') ? pathPart.split('/')[1] : null
+    const id = projectId || idFromUrl
+
     const urlParams = new URLSearchParams(hashParts[1] || '')
     const pageIdFromUrl = urlParams.get('page')
 
@@ -742,6 +746,8 @@ export default function ProjectView({ projectId }) {
 
                 // Update rows with translations - dynamically handle target languages
                 for (const result of results) {
+                    if (!result.id) continue; // Skip invalid results
+
                     // Result format: { id, translations: { my: { text, status }, zh: { text, status } } }
                     const updates = {
                         translatedAt: new Date().toISOString(),
@@ -756,8 +762,12 @@ export default function ProjectView({ projectId }) {
                         }
                     })
 
-                    await updateProjectRow(id, result.id, updates)
-                    totalSuccessCount++
+                    try {
+                        await updateProjectRow(id, result.id, updates)
+                        totalSuccessCount++
+                    } catch (err) {
+                        // Silent fail for individual row update to allow others to proceed
+                    }
                 }
             }
 

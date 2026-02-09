@@ -64,7 +64,9 @@ export default function QuickCheck() {
             )
 
             const result = results[0]
-            setTranslatedText(result?.[targetLanguage] || '')
+            // Fix: Provider returns { translations: { [lang]: { text: "..." } } }
+            const translatedContent = result?.translations?.[targetLanguage]?.text || result?.[targetLanguage] || ''
+            setTranslatedText(translatedContent)
             setHasTranslated(true)
             setIsEditing(false)
 
