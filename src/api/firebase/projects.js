@@ -273,7 +273,7 @@ export async function deletePageRows(projectId, pageId, rowIds) {
     try {
         const batch = writeBatch(db);
         rowIds.forEach(id => {
-            const rowRef = doc(db, COLLECTION, projectId, 'rows', id);
+            const rowRef = doc(db, COLLECTION, projectId, 'pages', pageId, 'rows', id);
             batch.delete(rowRef);
         });
         await batch.commit();
@@ -285,7 +285,18 @@ export async function deletePageRows(projectId, pageId, rowIds) {
 }
 
 export async function deleteProjectRows(projectId, rowIds) {
-    return deletePageRows(projectId, '', rowIds);
+    try {
+        const batch = writeBatch(db);
+        rowIds.forEach(id => {
+            const rowRef = doc(db, COLLECTION, projectId, 'rows', id);
+            batch.delete(rowRef);
+        });
+        await batch.commit();
+        await updateProject(projectId, {});
+    } catch (error) {
+        console.error('Error deleting project rows:', error);
+        throw error;
+    }
 }
 
 /**
@@ -368,3 +379,5 @@ export async function getUserSubmissions(userId) {
         throw error;
     }
 }
+
+

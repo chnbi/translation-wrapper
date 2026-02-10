@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Agentation } from 'agentation';
 import { Toaster } from "sonner";
 import { getUserByEmail } from './api/firebase';
 
@@ -124,7 +123,6 @@ function App() {
                         <PromptProvider>
                             <AppContent />
                             <Toaster />
-                            <Agentation />
                         </PromptProvider>
                     </GlossaryProvider>
                 </ProjectProvider>

@@ -817,7 +817,7 @@ export default function ProjectView({ projectId }) {
                     )
                 }
                 return (
-                    <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">
+                    <div className="whitespace-pre-wrap leading-relaxed">
                         <GlossaryHighlighter
                             text={row.source_text || row.en || row.text || ''}
                             language="en"
@@ -843,7 +843,7 @@ export default function ProjectView({ projectId }) {
                                 value={editingRowData?.[langCode] || ''}
                                 onChange={(e) => setEditingRowData(prev => ({ ...prev, [langCode]: e.target.value }))}
                                 onKeyDown={handleEditKeyDown}
-                                className="w-full h-full min-h-[80px] bg-white resize-y p-3 rounded-lg border border-primary/40 focus:border-primary focus:ring-4 focus:ring-primary/10 shadow-sm transition-all text-[13px] leading-relaxed"
+                                className="w-full h-full min-h-[80px] bg-white resize-y p-3 rounded-lg border border-primary/40 focus:border-primary focus:ring-4 focus:ring-primary/10 shadow-sm transition-all text-sm leading-relaxed"
                                 placeholder="Enter translation..."
                                 autoFocus
                             />
@@ -853,7 +853,7 @@ export default function ProjectView({ projectId }) {
                 // Read from translations JSON first, fallback to legacy field
                 const displayText = row.translations?.[langCode]?.text || row[langCode] || ''
                 return (
-                    <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">
+                    <div className="whitespace-pre-wrap leading-relaxed">
                         <GlossaryHighlighter
                             text={displayText || '—'}
                             language={langCode}
@@ -887,7 +887,7 @@ export default function ProjectView({ projectId }) {
                             className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: config.color }}
                         />
-                        <span className="text-[13px] text-slate-500 font-medium">
+                        <span className="font-medium text-muted-foreground">
                             {config.label}
                         </span>
                     </div>
@@ -906,7 +906,7 @@ export default function ProjectView({ projectId }) {
                 if (!remarkText.trim()) return <span style={{ color: 'hsl(220, 13%, 91%)' }}>—</span>
 
                 return (
-                    <div className="text-[13px] text-slate-500 italic truncate max-w-[200px]" title={remarkText}>
+                    <div className="text-muted-foreground italic truncate max-w-[200px]" title={remarkText}>
                         {remarkText}
                     </div>
                 )
@@ -1025,8 +1025,8 @@ export default function ProjectView({ projectId }) {
                                 onSelect={setSelectedPromptId}
                             />
                             <StatusFilterDropdown
-                                currentFilter={statusFilter}
-                                onSelect={setStatusFilter}
+                                selectedStatuses={statusFilter}
+                                onStatusChange={setStatusFilter}
                             />
                         </>
                     )}
@@ -1134,7 +1134,7 @@ export default function ProjectView({ projectId }) {
                 selectedIds={selectedRowIds}
                 onToggleSelect={(id) => toggleRowSelection(project.id, id)}
                 onToggleSelectAll={handleSelectAll}
-                onRowClick={(row) => { }}
+                onRowClick={(row) => toggleRowSelection(project.id, row.id)}
                 scrollable={true}
                 getRowStyle={(row) => isRowNew(id, currentPageId, row) ? { backgroundColor: COLORS.primaryLightest } : {}}
             >

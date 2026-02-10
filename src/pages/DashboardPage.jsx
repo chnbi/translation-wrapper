@@ -3,6 +3,7 @@ import { Folder, MoreHorizontal, Plus, Upload } from "lucide-react"
 import { PageContainer } from "@/components/ui/shared"
 import NewProjectForm from "@/components/NewProjectForm"
 import { useProjects } from "@/context/ProjectContext"
+import { useAuth } from "@/App"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 import { parseExcelFile } from "@/lib/excel"
@@ -29,7 +30,14 @@ import { ConfirmDialog } from "@/components/dialogs"
 import Pagination from "@/components/Pagination"
 
 export default function Dashboard() {
-    const { projects, deleteProject, addProject } = useProjects()
+    const { projects: allProjects, deleteProject, addProject } = useProjects()
+    const { user, isManager } = useAuth() // Get auth state
+
+    // Filter projects: Managers see all, Editors/Users see only their own
+    const projects = isManager
+        ? allProjects
+        : allProjects.filter(p => p.createdBy === user?.id)
+
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
     const [deleteConfirm, setDeleteConfirm] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)

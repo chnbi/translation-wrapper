@@ -426,7 +426,7 @@ export function AppSidebar({ ...props }) {
   const { terms: glossaryTerms } = useGlossary()
   const { prompts } = usePrompts()
   const { getNewApprovalCount } = useApprovalNotifications()
-  const { isManager } = useAuth()
+  const { isManager, user } = useAuth()
   const [settingsOpen, setSettingsOpen] = React.useState(true)
   const [currentHash, setCurrentHash] = React.useState(window.location.hash)
   const [expandedProjectId, setExpandedProjectId] = React.useState(null)
@@ -514,7 +514,11 @@ export function AppSidebar({ ...props }) {
   const pendingApprovals = React.useMemo(() => {
     let count = 0
     // Count project rows pending review
-    for (const project of projects) {
+    const projectsToCount = isManager
+      ? projects
+      : projects.filter(p => p.createdBy === user?.id)
+
+    for (const project of projectsToCount) {
       const pages = getProjectPages(project.id) || []
       if (pages.length > 0) {
         for (const page of pages) {
@@ -526,10 +530,14 @@ export function AppSidebar({ ...props }) {
         count += rows.filter(r => r.status === 'review').length
       }
     }
-    // Count glossary terms pending review
-    count += glossaryTerms.filter(t => t.status === 'review').length
+
+    // Only Managers see glossary reviews
+    if (isManager) {
+      count += glossaryTerms.filter(t => t.status === 'review').length
+    }
+
     return count
-  }, [projects, getProjectPages, getPageRows, getProjectRows, glossaryTerms])
+  }, [projects, getProjectPages, getPageRows, getProjectRows, glossaryTerms, isManager, user])
 
   const glossaryNewApprovals = getNewApprovalCount('glossary', 'main', glossaryTerms)
   const projectsInProgress = projects.filter(p => p.status === 'in-progress').length
@@ -546,8 +554,13 @@ export function AppSidebar({ ...props }) {
     { title: "Prompt Library", url: "#prompt", icon: Library },
   ]
 
+  // Filter projects for recent list based on role (Editor sees only their own)
+  const filteredNavProjects = isManager
+    ? projects
+    : projects.filter(p => p.createdBy === user?.id)
+
   // Dynamic projects list (show up to 5 recent, sorted by lastUpdated)
-  const navProjects = [...projects]
+  const navProjects = [...filteredNavProjects]
     .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0))
     .slice(0, 5)
 

@@ -85,11 +85,12 @@ export function AuthProvider({ children }) {
             // Create user profile in Firestore
             await setDoc(doc(db, 'users', user.uid), {
                 email: user.email,
+                name: userData.name || '',
                 role: userData.role || ROLES.EDITOR,
                 languages: userData.languages || [],
                 createdAt: new Date().toISOString(),
                 // Default avatar if needed
-                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(email)}&background=random`
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || email)}&background=random`
             });
 
             console.log('[Firebase] User signed up:', user.email);

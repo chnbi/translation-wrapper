@@ -89,7 +89,7 @@ export function SendForReviewDialog({
                                                                 {manager.name?.substring(0, 2).toUpperCase()}
                                                             </AvatarFallback>
                                                         </Avatar>
-                                                        <span>{manager.name}</span>
+                                                        <span>{manager.name || manager.email || 'Unknown User'}</span>
                                                     </div>
                                                 </SelectItem>
                                             ))

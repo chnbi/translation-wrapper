@@ -119,6 +119,8 @@ export class ILMUchatProvider extends BaseAIProvider {
     async _executeOpenAICompatible(messages, maxTokens = 4096) {
         const start = Date.now();
 
+        console.log('[ILMUchat] Requesting:', this.endpoint, 'Key present:', !!this.apiKey, 'Key length:', this.apiKey?.length);
+
         const response = await fetch(this.endpoint, {
             method: 'POST',
             headers: {

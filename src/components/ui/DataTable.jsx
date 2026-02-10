@@ -14,14 +14,16 @@ export const TABLE_STYLES = {
     container: 'rounded-2xl bg-white dark:bg-slate-900 overflow-hidden border border-gray-100 dark:border-slate-800',
 
     // Padding values (kept for style props that need strict values)
-    cellPaddingX: '16px',
+    cellPaddingX: '12px',
     cellPaddingY: '12px',
     headerPaddingY: '14px',
     checkboxColumnWidth: '52px',
 
     // Tailwind Classes equivalents for direct use
-    headerClass: 'px-4 py-3.5 text-left text-sm font-medium text-muted-foreground select-none',
-    cellClass: 'px-4 py-3 text-sm text-foreground',
+    fontSize: '13px', // Single source of truth for font size
+    textClass: 'text-[13px]',
+    headerClass: 'px-4 py-3.5 text-left text-[13px] font-medium text-muted-foreground select-none',
+    cellClass: 'px-3 py-3 text-[13px] text-foreground',
 
     // Colors (CSS Variables preferred for proper theme support)
     borderColor: 'var(--border)',
@@ -59,6 +61,10 @@ export function DataTable({
     getRowStyle,
     children
 }) {
+    // Refs for drag detection
+    const mouseDownPos = React.useRef({ x: 0, y: 0 })
+    const isDragging = React.useRef(false)
+
     // Normalize selection check
     const isSelected = (id) => {
         if (Array.isArray(selectedIds)) return selectedIds.includes(id)
@@ -102,7 +108,7 @@ export function DataTable({
                             {columns.map((col, idx) => (
                                 <th
                                     key={idx}
-                                    className="first:rounded-tl-xl last:rounded-tr-xl text-sm font-medium text-slate-500 dark:text-slate-400 select-none"
+                                    className="first:rounded-tl-xl last:rounded-tr-xl text-xs font-medium text-slate-500 dark:text-slate-400 select-none"
                                     style={{
                                         padding: TABLE_STYLES.headerPadding,
                                         textAlign: col.align || 'left',
@@ -137,7 +143,28 @@ export function DataTable({
                                 return (
                                     <tr
                                         key={row.id || rowIndex}
-                                        onClick={() => onRowClick && onRowClick(row)}
+                                        onMouseDown={(e) => {
+                                            mouseDownPos.current = { x: e.clientX, y: e.clientY }
+                                            isDragging.current = false
+                                        }}
+                                        onMouseMove={(e) => {
+                                            if (!mouseDownPos.current) return
+                                            const distance = Math.sqrt(
+                                                Math.pow(e.clientX - mouseDownPos.current.x, 2) +
+                                                Math.pow(e.clientY - mouseDownPos.current.y, 2)
+                                            )
+                                            if (distance > 5) {
+                                                isDragging.current = true
+                                            }
+                                        }}
+                                        onClick={(e) => {
+                                            if (isDragging.current) {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                return
+                                            }
+                                            onRowClick && onRowClick(row)
+                                        }}
                                         className={`transition-colors text-slate-900 dark:text-slate-100 ${selected ? 'bg-primary/5 dark:bg-primary/10' : 'bg-transparent'
                                             } ${onRowClick ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : ""}`}
                                         style={customStyle}
@@ -173,7 +200,7 @@ export function DataTable({
                                                     key={colIdx}
                                                     style={{
                                                         padding: TABLE_STYLES.cellPadding,
-                                                        fontSize: '14px',
+                                                        fontSize: TABLE_STYLES.fontSize,
                                                         textAlign: col.align || 'left',
                                                         color: col.color
                                                     }}

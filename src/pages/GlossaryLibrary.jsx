@@ -815,7 +815,8 @@ export default function Glossary() {
                             {/* Translate No Selection */}
                             {hasFilteredTerms && !hasSelection && !allFilled && (
                                 <PrimaryButton
-                                    style={{ height: '32px', fontSize: '12px', padding: '0 16px', backgroundColor: COLORS.blueMedium, marginLeft: '8px' }}
+                                    className="h-8 text-xs px-4 ml-2 bg-blue-600 hover:bg-blue-700"
+                                    style={{ marginLeft: '8px' }}
                                     onClick={handleTranslateAll}
                                     disabled={isTranslating}
                                 >
@@ -850,7 +851,10 @@ export default function Glossary() {
                     onToggleSelectAll={toggleSelectAll}
                     sortConfig={{ field: sortField, direction: sortDirection }}
                     onSort={handleSort}
-                    onRowClick={(row) => console.log('Row clicked', row)}
+                    onRowClick={(row) => toggleSelect(row.id)}
+                    emptyMessage="No glossary terms found"
+                    scrollable={true}
+                    getRowStyle={(row) => isRowNew('glossary', 'main', row) ? { backgroundColor: COLORS.primaryLightest } : {}}
                 >
                     {/* Inline Add Row */}
                     {isAddingRow && (

@@ -13,6 +13,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState('')
     const [role, setRole] = useState(ROLES.EDITOR)
     const [selectedLanguages, setSelectedLanguages] = useState(['en']) // Default to English
+    const [name, setName] = useState('')
 
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
@@ -35,7 +36,8 @@ export default function LoginPage() {
             if (isSignUp) {
                 await signUp(email, password, {
                     role,
-                    languages: role === ROLES.MANAGER ? selectedLanguages : []
+                    languages: role === ROLES.MANAGER ? selectedLanguages : [],
+                    name: name.trim()
                 })
             } else {
                 await signIn(email, password)
@@ -149,6 +151,21 @@ export default function LoginPage() {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Name Field (Sign Up Only) */}
+                    {isSignUp && (
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                required
+                                placeholder="Your Name"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all text-sm"
+                            />
+                        </div>
+                    )}
+
                     {/* Email Field */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>

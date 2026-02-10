@@ -285,20 +285,28 @@ export default function PromptLibrary() {
                                     </h3>
 
                                     <div className="space-y-2 mb-4 flex-1">
-                                        {role && (
-                                            <p className="text-xs text-slate-500 line-clamp-1">
-                                                <span className="font-semibold text-slate-700">Role:</span> {role}
-                                            </p>
-                                        )}
-                                        {goal && (
+                                        {template.description ? (
                                             <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">
-                                                {role ? <><span className="font-semibold text-slate-700">Goal:</span> {goal}</> : goal}
+                                                {template.description}
                                             </p>
-                                        )}
-                                        {constraints && (
-                                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                                <span className="font-semibold text-slate-700">Constraints:</span> {constraints}
-                                            </p>
+                                        ) : (
+                                            <>
+                                                {role && (
+                                                    <p className="text-xs text-slate-500 line-clamp-1">
+                                                        <span className="font-semibold text-slate-700">Role:</span> {role}
+                                                    </p>
+                                                )}
+                                                {goal && (
+                                                    <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">
+                                                        {role ? <><span className="font-semibold text-slate-700">Goal:</span> {goal}</> : goal}
+                                                    </p>
+                                                )}
+                                                {constraints && (
+                                                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                        <span className="font-semibold text-slate-700">Constraints:</span> {constraints}
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
                                     </div>
 

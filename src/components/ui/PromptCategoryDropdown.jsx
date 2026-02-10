@@ -77,10 +77,10 @@ export function PromptCategoryDropdown({ currentPromptId, templates, onSelect, s
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
-                    height: '32px',
-                    padding: '0 16px',
+                    height: '24px',
+                    padding: '0 10px',
                     borderRadius: '9999px',
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: 500,
                     // Slightly darker grey for default to be more visible "grey colour"
                     backgroundColor: isDefault ? 'hsl(220, 13%, 91%)' : 'hsl(340, 82%, 95%)',

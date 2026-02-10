@@ -28,6 +28,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { deleteUser } from "@/api/firebase"
+import EditManagerDialog from "@/components/dialogs/EditManagerDialog"
 
 export default function UsersPage() {
     const { user: currentUser, isManager } = useAuth()

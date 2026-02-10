@@ -53,6 +53,7 @@ export default function QuickCheck() {
         setHasTranslated(false)
 
         try {
+            console.log('Call params:', { sourceText, sourceLanguage, targetLanguage, defaultTemplate })
             const results = await getAI().generateBatch(
                 [{ id: 1, text: sourceText }],
                 {
@@ -62,10 +63,13 @@ export default function QuickCheck() {
                     template: defaultTemplate
                 }
             )
+            console.log('API Results:', results)
 
             const result = results[0]
             // Fix: Provider returns { translations: { [lang]: { text: "..." } } }
             const translatedContent = result?.translations?.[targetLanguage]?.text || result?.[targetLanguage] || ''
+
+            console.log('Extracted content:', translatedContent, 'for target:', targetLanguage)
             setTranslatedText(translatedContent)
             setHasTranslated(true)
             setIsEditing(false)
@@ -133,7 +137,7 @@ export default function QuickCheck() {
                             {hasTranslated && !isEditing ? (
                                 <div
                                     onClick={() => setIsEditing(true)}
-                                    className="w-full h-full p-6 overflow-auto text-sm leading-relaxed whitespace-pre-wrap font-sans cursor-text hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-slate-700 dark:text-slate-300"
+                                    className={`w-full h-full p-6 overflow-auto ${TABLE_STYLES.textClass} leading-relaxed whitespace-pre-wrap font-sans cursor-text hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-slate-700 dark:text-slate-300`}
                                     title="Click to edit"
                                 >
                                     <GlossaryHighlighter
@@ -154,7 +158,7 @@ export default function QuickCheck() {
                                     }}
                                     autoFocus={isEditing && hasTranslated}
                                     placeholder="Enter text to translate..."
-                                    className="w-full h-full p-6 bg-transparent resize-none border-none focus:ring-0 focus:outline-none text-sm leading-relaxed font-sans text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 caret-slate-900 dark:caret-slate-100"
+                                    className={`w-full h-full p-6 bg-transparent resize-none border-none focus:ring-0 focus:outline-none ${TABLE_STYLES.textClass} leading-relaxed font-sans text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 caret-slate-900 dark:caret-slate-100`}
                                 />
                             )}
                         </div>
@@ -180,7 +184,7 @@ export default function QuickCheck() {
                         </div>
 
                         {/* Result area */}
-                        <div className="min-h-[280px] p-6 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                        <div className={`min-h-[280px] p-6 ${TABLE_STYLES.textClass} leading-relaxed text-slate-700 dark:text-slate-300`}>
                             {isTranslating ? (
                                 <div className="flex items-center text-muted-foreground">
                                     <Loader2 className="w-4 h-4 animate-spin mr-2" />

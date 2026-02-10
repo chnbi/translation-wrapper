@@ -187,6 +187,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
     const [isEditing, setIsEditing] = useState(!initialData) // Start in edit mode for new, view mode for existing
     const [formData, setFormData] = useState({
         name: '',
+        description: '',
         prompt: '',
         tags: [],
         status: 'draft'
@@ -197,6 +198,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
             if (initialData) {
                 setFormData({
                     name: initialData.name || '',
+                    description: initialData.description || '',
                     prompt: initialData.prompt || '',
                     tags: initialData.tags?.length ? initialData.tags : [],
                     status: initialData.status || 'draft'
@@ -205,6 +207,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
             } else {
                 setFormData({
                     name: '',
+                    description: '',
                     prompt: '',
                     tags: [],
                     status: 'draft'
@@ -235,7 +238,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        marginBottom: '12px'
+                        marginBottom: '2px'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <h2 style={{
@@ -291,6 +294,19 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                         </div>
                     </div>
 
+                    {/* Description (View Mode) */}
+                    {formData.description && (
+                        <div style={{
+                            marginBottom: '16px',
+                            fontSize: '14px',
+                            lineHeight: '1.5',
+                            color: 'hsl(220, 9%, 46%)',
+                            whiteSpace: 'pre-wrap'
+                        }}>
+                            {formData.description}
+                        </div>
+                    )}
+
                     {/* Divider */}
                     <div style={{
                         height: '1px',
@@ -300,6 +316,8 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
 
                     {/* Content */}
                     <div>
+
+
                         <label style={{
                             display: 'block',
                             fontSize: '14px',
@@ -409,14 +427,24 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                     margin: '16px 0 24px'
                 }} />
 
-                {/* Form */}
-                <div>
+                {/* Form - Scrollable Container */}
+                <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
                     {/* Template Name */}
                     <FormField label="Template name" required>
                         <TextInput
                             placeholder="E.g. Banner Slogan"
                             value={formData.name}
                             onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                            style={{ backgroundColor: 'white' }}
+                        />
+                    </FormField>
+
+                    {/* Description */}
+                    <FormField label="Description (Optional)">
+                        <TextInput
+                            placeholder="Briefly describe what this prompt is for..."
+                            value={formData.description}
+                            onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                             style={{ backgroundColor: 'white' }}
                         />
                     </FormField>
@@ -465,7 +493,7 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                     </FormField>
 
                     {/* Action Buttons */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '24px', paddingBottom: '4px' }}>
                         <SecondaryButton onClick={() => {
                             if (initialData) {
                                 setIsEditing(false) // Go back to view mode
