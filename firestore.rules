@@ -1,0 +1,148 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    // Check if the user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Get the requesting user's role from their user document
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Check if the user is an admin
+    function isAdmin() {
+      return isAuth() && getUserRole() == 'admin';
+    }
+
+    // Check if the user is a manager or admin
+    function isManagerOrAbove() {
+      return isAuth() && getUserRole() in ['admin', 'manager'];
+    }
+
+    // Check if the user is modifying their own role field
+    function isChangingRole() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    }
+
+    // ============================================================
+    // Users Collection
+    // ============================================================
+
+    match /users/{userId} {
+      // Any authenticated user can read any user profile
+      // (needed to display names, roles in the UI)
+      allow read: if isAuth();
+
+      // Users can update their own profile, but NOT their role
+      allow update: if isAuth() && request.auth.uid == userId && !isChangingRole();
+
+      // Admins can update any user (including role changes)
+      allow update: if isAdmin();
+
+      // Only admins can create or delete user profiles
+      allow create: if isAdmin() || (isAuth() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+
+      // User's private settings (API keys, preferences)
+      match /settings/{settingId} {
+        // Only the user themselves can read/write their own settings
+        allow read, write: if isAuth() && request.auth.uid == userId;
+      }
+    }
+
+    // ============================================================
+    // Projects Collection
+    // ============================================================
+
+    match /projects/{projectId} {
+      // All authenticated users can read and write projects
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAuth();
+
+      // Project Rows (sub-collection)
+      match /rows/{rowId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAuth();
+        allow delete: if isAuth();
+      }
+
+      // Project Pages (sub-collection)
+      match /pages/{pageId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAuth();
+        allow delete: if isAuth();
+      }
+    }
+
+    // ============================================================
+    // Glossary Terms
+    // ============================================================
+
+    match /glossary_terms/{termId} {
+      // All authenticated users can read and create terms
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+
+      // Only managers+ can delete glossary terms
+      allow delete: if isManagerOrAbove();
+    }
+
+    // ============================================================
+    // Glossary Categories
+    // ============================================================
+
+    match /glossary_categories/{categoryId} {
+      // All authenticated users can read categories
+      allow read: if isAuth();
+
+      // Only managers+ can create, update, or delete categories
+      allow create, update, delete: if isManagerOrAbove();
+    }
+
+    // ============================================================
+    // Prompt Templates
+    // ============================================================
+
+    match /prompt_templates/{templateId} {
+      // All authenticated users can read and create templates
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+
+      // Only managers+ can delete templates
+      allow delete: if isManagerOrAbove();
+    }
+
+    // ============================================================
+    // Audit Logs
+    // ============================================================
+
+    match /audit_logs/{logId} {
+      // Only managers+ can read audit logs
+      allow read: if isManagerOrAbove();
+
+      // Any authenticated user can create a log entry
+      allow create: if isAuth();
+
+      // Nobody can update or delete audit logs
+      allow update, delete: if false;
+    }
+
+    // ============================================================
+    // Deny everything else by default
+    // ============================================================
+  }
+}

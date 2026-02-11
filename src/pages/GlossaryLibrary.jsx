@@ -712,7 +712,6 @@ export default function Glossary() {
                     {/* Category Filter Tags */}
                     <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
                         {['All', ...new Set([
-                            'General',
                             ...dynamicCategories.map(c => c.name || c),
                             ...(terms || []).map(t => t.category).filter(Boolean)
                         ])].filter(c => c).map(category => (
@@ -924,7 +923,6 @@ export default function Glossary() {
                                         backgroundColor: 'white'
                                     }}
                                 >
-                                    <option value="General">General</option>
                                     {dynamicCategories.map(cat => (
                                         <option key={cat.id || cat.name} value={cat.name || cat}>{cat.name || cat}</option>
                                     ))}

@@ -143,8 +143,8 @@ export default function Settings() {
                 Settings
             </PageHeader>
 
-            <div id="security" className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Security</h2>
+            <div id="glossary-categories" className="space-y-3">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Glossary</h2>
                 <div className="rounded-2xl bg-card border border-border divide-y divide-border">
                     <button
                         onClick={() => setIsCategoryOpen(true)}

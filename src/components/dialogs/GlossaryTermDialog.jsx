@@ -18,8 +18,8 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { useState, useEffect } from "react"
+import { useGlossary } from "@/context/GlossaryContext"
 
-const categories = ["UI", "General", "Account", "Actions", "Legal", "Marketing", "Technical"]
 const statuses = [
     { value: "draft", label: "Draft", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" },
     { value: "approved", label: "Approved", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" },
@@ -27,12 +27,17 @@ const statuses = [
 ]
 
 export default function GlossaryTermDialog({ open, onOpenChange, initialData, onSave }) {
+    const { categories } = useGlossary()
+
+    // Derive category names from Firebase categories
+    const categoryNames = categories.map(c => c.name || c).filter(Boolean)
+
     // Using Firebase field names: en, my, cn
     const [formData, setFormData] = useState({
         en: '',
         my: '',
         cn: '',
-        category: 'General',
+        category: '',
         status: 'draft',
         remark: '',
     })
@@ -45,7 +50,7 @@ export default function GlossaryTermDialog({ open, onOpenChange, initialData, on
                     en: initialData.en || initialData.english || '',
                     my: initialData.my || initialData.malay || '',
                     cn: initialData.cn || initialData.chinese || '',
-                    category: initialData.category || 'General',
+                    category: initialData.category || categoryNames[0] || '',
                     status: initialData.status || 'draft',
                     remark: initialData.remark || '',
                 })
@@ -54,7 +59,7 @@ export default function GlossaryTermDialog({ open, onOpenChange, initialData, on
                     en: '',
                     my: '',
                     cn: '',
-                    category: 'General',
+                    category: categoryNames[0] || '',
                     status: 'draft',
                     remark: '',
                 })
@@ -113,16 +118,20 @@ export default function GlossaryTermDialog({ open, onOpenChange, initialData, on
                     {/* Category */}
                     <div className="space-y-2">
                         <Label>Category</Label>
-                        <Select value={formData.category} onValueChange={v => setFormData(prev => ({ ...prev, category: v }))}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {categories.map(cat => (
-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {categoryNames.length > 0 ? (
+                            <Select value={formData.category} onValueChange={v => setFormData(prev => ({ ...prev, category: v }))}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categoryNames.map(cat => (
+                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No categories configured. Add them in Settings → Glossary Categories.</p>
+                        )}
                     </div>
                 </div>
 

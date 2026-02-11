@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  Settings2,
   Languages,
   BookOpen,
   Library,
@@ -8,10 +7,7 @@ import {
   FileText,
   CheckSquare,
   Key,
-  Users,
-  Bell,
   ChevronDown,
-  ChevronRight,
   Edit3,
   Trash2,
   Plus,
@@ -50,8 +46,6 @@ import { useAuth } from "@/context/DevAuthContext"
 import { WordFlowLogo } from "@/components/ui/WordFlowLogo"
 import { COLORS } from "@/lib/constants"
 
-// WordFlow Logo Component - ChatGPT-style behavior
-// Logo navigates home, shows sidebar icon + "Open sidebar" tooltip when collapsed and hovered
 function SidebarBrand() {
   const { state, toggleSidebar } = useSidebar()
   const isCollapsed = state === "collapsed"
@@ -64,11 +58,9 @@ function SidebarBrand() {
 
   const handleClick = (e) => {
     if (isCollapsed) {
-      // When collapsed, clicking logo opens sidebar (like ChatGPT)
       e.preventDefault()
       toggleSidebar()
     } else {
-      // When expanded, logo navigates to home
       window.location.hash = '#'
     }
   }
@@ -81,8 +73,6 @@ function SidebarBrand() {
     </svg>
   )
 
-  // WordFlow Flower Logo - sized to match feature icons
-  // Replaced by shared component
   const FlowerLogo = () => <WordFlowLogo width={28} height={28} />
 
   return (
@@ -150,9 +140,9 @@ const navEssentials = [
 // Settings - Flattened categories per user request
 const navSettings = [
   {
-    title: "Security",
-    url: "#settings?section=security", // Deep link to security section
-    icon: Key,
+    title: "Glossary Categories",
+    url: "#settings?section=glossary-categories",
+    icon: BookOpen,
   },
   {
     title: "API Configuration",
@@ -162,16 +152,15 @@ const navSettings = [
   {
     title: "Administration",
     url: "#settings?section=administration",
-    icon: Users,
-    // We'll filter this by role in the main component
+    icon: Key,
+    managerOnly: true,
   },
   {
     title: "Audit Trail",
-    url: "#settings?section=audit-trail", // Matched ID in Settings.jsx (AuditLogsSection often has own ID or wrapper)
+    url: "#settings?section=audit-trail",
     icon: FileText,
-    // We'll filter this by role in the main component
+    managerOnly: true,
   },
-
 ]
 
 // Component for projects with multiple pages (like "5g advanced" in Figma)
@@ -686,7 +675,7 @@ export function AppSidebar({ ...props }) {
           <SidebarMenu>
             {navSettings.map((item) => {
               // Filter out restricted items
-              if ((item.title === 'Administration' || item.title === 'Audit Trail') && !isManager) return null
+              if (item.managerOnly && !isManager) return null
 
               const isActive = currentHash === item.url
               return (

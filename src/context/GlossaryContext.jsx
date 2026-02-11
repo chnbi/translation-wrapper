@@ -34,9 +34,18 @@ export function GlossaryProvider({ children }) {
 
             // Load categories
             const firestoreCategories = await dbService.getGlossaryCategories()
-            const finalCategories = firestoreCategories.length > 0
-                ? firestoreCategories
-                : [] // No fallback categories
+            let finalCategories = firestoreCategories
+
+            // Seed default categories if none exist
+            if (firestoreCategories.length === 0) {
+                const defaultNames = ['Banner', 'Price', 'UI Labels']
+                const seeded = []
+                for (const name of defaultNames) {
+                    const newCat = await dbService.createGlossaryCategory({ name })
+                    seeded.push(newCat)
+                }
+                finalCategories = seeded
+            }
 
             // Normalize terms to ensure consistent field names (handle legacy data)
             const normalizedTerms = firestoreTerms.map(t => {
