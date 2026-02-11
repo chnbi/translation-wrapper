@@ -84,10 +84,17 @@ export function GlossaryProvider({ children }) {
         }
     }, [setTerms, setCategories, setDataSource, setIsLoading])
 
-    // Initial load
+    // Load only when user is authenticated (Firestore rules require auth)
     useEffect(() => {
+        if (!user) {
+            setTerms([])
+            setCategories([])
+            setDataSource('none')
+            setIsLoading(false)
+            return
+        }
         refreshGlossary()
-    }, [refreshGlossary])
+    }, [user, refreshGlossary])
 
     // Add a new term (with Firebase sync)
     const addTerm = useCallback(async (term) => {

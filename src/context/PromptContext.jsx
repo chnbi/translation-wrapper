@@ -34,8 +34,15 @@ export function PromptProvider({ children }) {
     const [isLoading, setIsLoading] = useState(true)
     const [dataSource, setDataSource] = useState('loading')
 
-    // Load templates from Firebase on mount
+    // Load templates only when user is authenticated (Firestore rules require auth)
     useEffect(() => {
+        if (!user) {
+            setTemplates([])
+            setDataSource('none')
+            setIsLoading(false)
+            return
+        }
+
         async function loadData() {
             try {
                 // Loading templates from Firebase
@@ -64,7 +71,7 @@ export function PromptProvider({ children }) {
         }
 
         loadData()
-    }, [])
+    }, [user])
 
     // Add a new template (with Firestore sync)
     const addTemplate = useCallback(async (template) => {
