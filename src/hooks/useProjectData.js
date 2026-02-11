@@ -19,8 +19,21 @@ export function useProjectData() {
     const [isLoading, setIsLoading] = useState(true)
     const [dataSource, setDataSource] = useState('loading')
 
-    // Load all data on mount
+    // Load data only when user is authenticated (Firestore rules require auth)
     useEffect(() => {
+        if (!user) {
+            setProjects([])
+            setProjectRows({})
+            setProjectPages({})
+            setSelectedPageId({})
+            setDataSource('none')
+            setIsLoading(false)
+            return
+        }
+
+        setIsLoading(true)
+        setDataSource('loading')
+
         async function loadData() {
             try {
                 // Loading projects
@@ -120,7 +133,7 @@ export function useProjectData() {
         }, 30000)
 
         return () => clearInterval(intervalId)
-    }, [])
+    }, [user])
 
     // Get a project by ID
     const getProject = useCallback((id) => {

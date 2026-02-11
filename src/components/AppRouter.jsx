@@ -32,7 +32,7 @@ export function useRoute() {
 // Component that uses project context for breadcrumbs
 export function AppRouter() {
     const route = useRoute();
-    const { getProject, getProjectPages } = useProjects();
+    const { getProject, getProjectPages, isLoading: projectsLoading } = useProjects();
 
     // Get page component and breadcrumbs based on route
     const getPageConfig = () => {
@@ -99,6 +99,16 @@ export function AppRouter() {
     };
 
     const { component: PageComponent, breadcrumbs, projectId, noPadding } = getPageConfig();
+
+    // Show loader while projects are loading (e.g. right after login)
+    if (projectsLoading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-background text-muted-foreground">
+                <Loader2 className="w-10 h-10 animate-spin mb-4 text-primary" aria-hidden />
+                <p className="text-sm font-medium">Loading projects...</p>
+            </div>
+        );
+    }
 
     return (
         <Layout breadcrumbs={breadcrumbs} noPadding={noPadding}>
