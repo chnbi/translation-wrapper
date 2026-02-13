@@ -12,6 +12,14 @@ import { PageHeader, SearchInput } from "@/components/ui/common"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
+import {
     Table,
     TableBody,
     TableCell,
@@ -31,17 +39,36 @@ import Pagination from "@/components/Pagination"
 
 export default function Dashboard() {
     const { projects: allProjects, deleteProject, addProject } = useProjects()
-    const { user, isManager } = useAuth() // Get auth state
+    const { user, isManager, isEditor, canDo } = useAuth()
+    const [viewMode, setViewMode] = useState('all') // 'all' | 'my'
 
-    // Filter projects: Managers see all, Editors/Users see only their own
-    // Filter projects: Managers see all, Editors/Users see only their own
-    // UPDATE: Editors should see all projects too (Requirement change)
-    const projects = allProjects
+    // Filter projects based on view mode and role
+    const projects = (() => {
+        if (viewMode === 'my') {
+            return allProjects.filter(p =>
+                p.ownerId === user?.id || // Owned by me
+                (p.targetLanguages && p.targetLanguages.some(lang => {
+                    // Or I am assigned to translate/review a language
+                    // (This logic can be refined based on row assignments if needed, 
+                    // but ownership/lang match is good fast filter)
+                    return user?.languages?.includes(lang)
+                }))
+            )
+        }
+        return allProjects // Everyone can view all
+    })()
 
     const [isNewProjectOpen, setIsNewProjectOpen] = useState(false)
     const [deleteConfirm, setDeleteConfirm] = useState(null)
     const [currentPage, setCurrentPage] = useState(1)
+
+    // Filters & Sort State
+    const [searchQuery, setSearchQuery] = useState("")
+    const [statusFilter, setStatusFilter] = useState([])
+    const [sortBy, setSortBy] = useState("updated_desc") // updated_desc, updated_asc, name_asc, name_desc
+
     const itemsPerPage = 10
+
     const handleCreateProject = async (projectData) => {
         const result = await addProject(projectData)
         setIsNewProjectOpen(false)
@@ -51,20 +78,42 @@ export default function Dashboard() {
         }
     }
 
-    // Compute Stats
+    // Compute Stats (based on filtered view)
     const totalProjects = projects.length
     const drafts = projects.filter(p => !p.status || p.status === 'draft').length
     const pendingApproval = projects.filter(p => p.status === 'review').length
     const completed = projects.filter(p => p.status === 'approved' || p.status === 'completed').length
 
-    // Sort and paginate projects
-    const sortedProjects = [...projects]
-        .sort((a, b) => new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0))
+    // 1. Search
+    const filteredBySearch = projects.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    // 2. Filter by Status
+    const filteredByStatus = filteredBySearch.filter(p =>
+        statusFilter.length === 0 || statusFilter.includes(p.status || 'draft')
+    )
+
+    // 3. Sort
+    const sortedProjects = [...filteredByStatus].sort((a, b) => {
+        switch (sortBy) {
+            case 'updated_asc':
+                return new Date(a.lastUpdated || 0) - new Date(b.lastUpdated || 0)
+            case 'name_asc':
+                return a.name.localeCompare(b.name)
+            case 'name_desc':
+                return b.name.localeCompare(a.name)
+            case 'updated_desc':
+            default:
+                return new Date(b.lastUpdated || 0) - new Date(a.lastUpdated || 0)
+        }
+    })
 
     const totalItems = sortedProjects.length
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     const paginatedProjects = sortedProjects.slice(startIndex, endIndex)
+
 
     // Helper for relative time
     const timeAgo = (dateStr) => {
@@ -100,13 +149,47 @@ export default function Dashboard() {
     return (
         <PageContainer>
             {/* Page Title */}
-            <PageHeader
-                description="Manage your translation projects and view progress."
-            >
-                Overview
-            </PageHeader>
+            {/* Page Title & Actions */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                <PageHeader
+                    description="Manage your translation projects and view progress."
+                    className="mb-0"
+                >
+                    Overview
+                </PageHeader>
 
-            {/* Stats Cards */}
+                <div className="flex items-center gap-3">
+                    {/* View Mode Tabs */}
+                    <div className="flex items-center p-1 bg-muted rounded-lg border border-border">
+                        <button
+                            onClick={() => setViewMode('all')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'all'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            All Projects
+                        </button>
+                        <button
+                            onClick={() => setViewMode('my')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'my'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            My Projects
+                        </button>
+                    </div>
+
+                    {/* New Project Button (Hidden for Editors) */}
+                    {(isManager || canDo('create_project')) && (
+                        <Button onClick={() => setIsNewProjectOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            New Project
+                        </Button>
+                    )}
+                </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {[
                     { label: 'Total projects', count: totalProjects },
@@ -134,6 +217,42 @@ export default function Dashboard() {
                         <Button onClick={() => setIsNewProjectOpen(true)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-4 h-9">
                             <Plus className="w-4 h-4 mr-2" /> New Project
                         </Button>
+                    </div>
+                </div>
+
+                {/* Filters Toolbar */}
+                <div className="flex flex-col md:flex-row gap-4 mb-4">
+                    <div className="relative flex-1 max-w-sm">
+                        <SearchInput
+                            placeholder="Search projects by name..."
+                            value={searchQuery}
+                            onChange={(val) => {
+                                setSearchQuery(val)
+                                setCurrentPage(1)
+                            }}
+                            width="100%"
+                            style={{ backgroundColor: 'hsl(var(--card))' }}
+                        />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <StatusFilterDropdown
+                            selectedStatuses={statusFilter}
+                            onStatusChange={(statuses) => {
+                                setStatusFilter(statuses)
+                                setCurrentPage(1)
+                            }}
+                        />
+                        <Select value={sortBy} onValueChange={setSortBy}>
+                            <SelectTrigger className="w-[180px] bg-card">
+                                <SelectValue placeholder="Sort by" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="updated_desc">Newest First</SelectItem>
+                                <SelectItem value="updated_asc">Oldest First</SelectItem>
+                                <SelectItem value="name_asc">Name (A-Z)</SelectItem>
+                                <SelectItem value="name_desc">Name (Z-A)</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
 
@@ -174,9 +293,16 @@ export default function Dashboard() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <span className="text-sm text-foreground font-medium whitespace-nowrap">
-                                            {timeAgo(project.lastUpdated || project.createdAt)}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            {project.lastModifiedBy && (
+                                                <span className="text-sm font-medium text-foreground">
+                                                    {project.lastModifiedBy.name || project.lastModifiedBy.email || 'Unknown'}
+                                                </span>
+                                            )}
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                                {timeAgo(project.lastUpdated || project.createdAt)}
+                                            </span>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className="bg-muted text-muted-foreground hover:bg-muted font-normal border-0">

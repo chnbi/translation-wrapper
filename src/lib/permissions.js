@@ -72,7 +72,8 @@ const permissions = {
         ACTIONS.MANAGE_USERS,
         ACTIONS.ASSIGN_LANGUAGES,
         ACTIONS.MANAGE_CATEGORIES,
-        ACTIONS.CONFIGURE_SETTINGS,
+        // Removed CONFIGURE_SETTINGS (Admin only)
+
         // Review
         ACTIONS.APPROVE_TRANSLATION,
         ACTIONS.REJECT_TRANSLATION,
@@ -103,23 +104,20 @@ const permissions = {
     ],
 
     [ROLES.EDITOR]: [
-        // Content
-        ACTIONS.CREATE_PROJECT,
-        ACTIONS.EDIT_PROJECT,
-        ACTIONS.DELETE_PROJECT,
-        ACTIONS.IMPORT_PROJECT,
-        ACTIONS.EXPORT_PROJECT,
-        // Glossary
-        ACTIONS.CREATE_GLOSSARY,
-        ACTIONS.EDIT_GLOSSARY,
-        ACTIONS.DELETE_GLOSSARY,
-        // Prompts
-        ACTIONS.CREATE_PROMPT,
-        ACTIONS.EDIT_PROMPT,
-        ACTIONS.DELETE_PROMPT,
-        // Translation
+        // Content - VIEW ONLY
+        // Removed CREATE/EDIT/DELETE PROJECT
+        // Removed IMPORT/EXPORT
+
+        // Glossary - VIEW ONLY
+        // Removed CREATE/EDIT/DELETE GLOSSARY
+
+        // Prompts - VIEW ONLY
+        // Removed CREATE/EDIT/DELETE PROMPT
+
+        // Translation - WORKER
         ACTIONS.TRANSLATE_ROW,
         ACTIONS.EDIT_TRANSLATION,
+
         // Read
         ACTIONS.VIEW_PROJECT,
         ACTIONS.VIEW_GLOSSARY,

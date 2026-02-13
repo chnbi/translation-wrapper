@@ -49,6 +49,7 @@ export async function createProject(projectData) {
     try {
         const docRef = await addDoc(collection(db, COLLECTION), {
             ...projectData,
+            ownerId: projectData.ownerId || null, // Capture owner
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             status: projectData.status || 'draft'

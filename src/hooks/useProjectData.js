@@ -5,13 +5,24 @@ import { logAction, AUDIT_ACTIONS } from '@/api/firebase'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/DevAuthContext'
 import { LANGUAGES } from '@/lib/constants'
+import { ROLES } from '@/lib/permissions'
 
 /**
  * Manages project data loading and CRUD operations with Firebase
  * @returns Project data state and handlers
  */
 export function useProjectData() {
-    const { user } = useAuth()
+    const { user, role } = useAuth()
+
+    // Helper to check if approval can be bypassed
+    const canBypassApproval = (project) => {
+        if (!user) return false
+        // 1. Manager/Admin can always bypass
+        if (role === ROLES.MANAGER || role === ROLES.ADMIN) return true
+        // 2. Project Owner can always bypass
+        if (project?.ownerId === (user?.id || user?.uid)) return true
+        return false
+    }
     const [projects, setProjects] = useState([])
     const [projectRows, setProjectRows] = useState({})  // { projectId: rows[] }
     const [projectPages, setProjectPages] = useState({}) // { projectId: { pages: [], pageRows: { pageId: rows[] } } }
@@ -165,6 +176,30 @@ export function useProjectData() {
         setSelectedPageId(prev => ({ ...prev, [projectId]: pageId }))
     }, [])
 
+    // Update a project
+    const updateProject = useCallback((id, updates) => {
+        setProjects(prev => prev.map(p =>
+            p.id === id ? { ...p, ...updates } : p
+        ))
+
+        if (dataSource === 'firestore') {
+            dbService.updateProject(id, updates).catch(() => { })
+        }
+    }, [dataSource])
+
+    // Delete a project
+    const deleteProject = useCallback((id) => {
+        setProjects(prev => prev.filter(p => p.id !== id))
+        setProjectRows(prev => {
+            const { [id]: removed, ...rest } = prev
+            return rest
+        })
+
+        if (dataSource === 'firestore') {
+            dbService.deleteProject(id).catch(() => { })
+        }
+    }, [dataSource])
+
     // Update a single row
     const updateProjectRow = useCallback((projectId, rowId, updates) => {
         // First, determine which page contains this row (BEFORE any state updates)
@@ -179,6 +214,32 @@ export function useProjectData() {
                 }
             }
         }
+
+        // Smart Approval Logic
+        // If sending for review, check if user is Manager, Admin or Project Owner
+        if (updates.status === 'review') {
+            const project = projects.find(p => p.id === projectId)
+            if (canBypassApproval(project)) {
+                updates.status = 'approved'
+                updates.approvedBy = user?.id || user?.uid
+                updates.approvedAt = new Date().toISOString()
+                toast.success("Approval process bypassed (Auto-approved)")
+            }
+        }
+
+        // Metadata Logic
+        updates.lastModifiedBy = {
+            uid: user?.id || user?.uid,
+            email: user?.email,
+            name: user?.displayName || user?.name || user?.email?.split('@')[0]
+        }
+        updates.lastModifiedAt = new Date().toISOString()
+
+        // Sync Project Metadata (for Dashboard)
+        updateProject(projectId, {
+            lastModifiedBy: updates.lastModifiedBy,
+            lastUpdated: new Date().toISOString() // Force dashboard sort update
+        })
 
         // Update legacy flat rows
         setProjectRows(prev => ({
@@ -247,15 +308,57 @@ export function useProjectData() {
                 dbService.updateProjectRow(projectId, rowId, updates).catch(() => { })
             }
         }
-    }, [dataSource, projectPages])
+    }, [dataSource, projectPages, projects, user, role, updateProject])
 
     // Update multiple rows at once
     const updateProjectRows = useCallback((projectId, rowUpdates) => {
+        // Enriched updates with Smart Approval and Metadata
+        const enrichedUpdates = rowUpdates.map(u => {
+            const changes = { ...u.changes }
+
+            // Smart Approval
+            if (changes.status === 'review') {
+                const project = projects.find(p => p.id === projectId)
+                if (canBypassApproval(project)) {
+                    changes.status = 'approved'
+                    changes.approvedBy = user?.id || user?.uid
+                    changes.approvedAt = new Date().toISOString()
+                }
+            }
+
+            // Metadata
+            changes.lastModifiedBy = {
+                uid: user?.id || user?.uid,
+                email: user?.email,
+                name: user?.displayName || user?.name || user?.email?.split('@')[0]
+            }
+            changes.lastModifiedAt = new Date().toISOString()
+
+            return { ...u, changes }
+        })
+
+        // Check for auto-approval toast
+        const autoApprovedCount = enrichedUpdates.filter(u => u.changes.status === 'approved' && rowUpdates.find(orig => orig.id === u.id)?.changes?.status === 'review').length
+        if (autoApprovedCount > 0) {
+            toast.success(`Approval bypassed for ${autoApprovedCount} row(s)`)
+        }
+
+        // Sync Project Metadata (for Dashboard)
+        // We take the user info from the current user
+        updateProject(projectId, {
+            lastModifiedBy: {
+                uid: user?.id || user?.uid,
+                email: user?.email,
+                name: user?.displayName || user?.name || user?.email?.split('@')[0]
+            },
+            lastUpdated: new Date().toISOString()
+        })
+
         // Update legacy flat rows
         setProjectRows(prev => ({
             ...prev,
             [projectId]: (prev[projectId] || []).map(row => {
-                const update = rowUpdates.find(u => u.id === row.id)
+                const update = enrichedUpdates.find(u => u.id === row.id)
                 return update ? { ...row, ...update.changes } : row
             })
         }))
@@ -268,7 +371,7 @@ export function useProjectData() {
             const updatedPageRows = {}
             for (const pageId in projectData.pageRows) {
                 updatedPageRows[pageId] = (projectData.pageRows[pageId] || []).map(row => {
-                    const update = rowUpdates.find(u => u.id === row.id)
+                    const update = enrichedUpdates.find(u => u.id === row.id)
                     return update ? { ...row, ...update.changes } : row
                 })
             }
@@ -280,9 +383,9 @@ export function useProjectData() {
 
         // Sync to Firestore
         if (dataSource === 'firestore') {
-            dbService.updateProjectRows(projectId, rowUpdates).catch(() => { })
+            dbService.updateProjectRows(projectId, enrichedUpdates).catch(() => { })
         }
-    }, [dataSource])
+    }, [dataSource, projects, user, role, updateProject])
 
     // Add rows to a project
     const addProjectRows = useCallback(async (projectId, newRows) => {
@@ -431,6 +534,7 @@ export function useProjectData() {
 
         const projectData = {
             ...projectMeta,
+            ownerId: user?.id, // Pass current user as owner
             status: 'draft',
             progress: 0,
             translatedRows: 0,
@@ -547,29 +651,7 @@ export function useProjectData() {
         }
     }, [dataSource])
 
-    // Update a project
-    const updateProject = useCallback((id, updates) => {
-        setProjects(prev => prev.map(p =>
-            p.id === id ? { ...p, ...updates } : p
-        ))
 
-        if (dataSource === 'firestore') {
-            dbService.updateProject(id, updates).catch(() => { })
-        }
-    }, [dataSource])
-
-    // Delete a project
-    const deleteProject = useCallback((id) => {
-        setProjects(prev => prev.filter(p => p.id !== id))
-        setProjectRows(prev => {
-            const { [id]: removed, ...rest } = prev
-            return rest
-        })
-
-        if (dataSource === 'firestore') {
-            dbService.deleteProject(id).catch(() => { })
-        }
-    }, [dataSource])
 
     // Add a project page
     const addProjectPage = useCallback(async (projectId, pageData, rows = []) => {

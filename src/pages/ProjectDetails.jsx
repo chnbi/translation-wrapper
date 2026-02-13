@@ -18,12 +18,20 @@ import { getAI } from "@/api/ai"
 import { toast } from "sonner"
 import { DataTable, TABLE_STYLES } from "@/components/ui/DataTable"
 import { PromptCategoryDropdown } from "@/components/ui/PromptCategoryDropdown"
+import { logAction, AUDIT_ACTIONS } from "@/api/firebase"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { getStatusConfig, LANGUAGES } from "@/lib/constants"
 
@@ -76,6 +84,8 @@ export default function ProjectView({ projectId }) {
     const [editingRowData, setEditingRowData] = useState(null) // Data for row being edited
 
     const [editWarning, setEditWarning] = useState(null) // { open: boolean, row: object }
+    // Remarks Dialog State
+    const [remarkDialog, setRemarkDialog] = useState({ open: false, row: null, text: '' })
 
     // Manager Assignment
     const [sendForReviewOpen, setSendForReviewOpen] = useState(false)
@@ -544,6 +554,45 @@ export default function ProjectView({ projectId }) {
         }
     }
 
+    // Remark Handlers
+    const handleOpenRemark = (row) => {
+        setRemarkDialog({
+            open: true,
+            row: row,
+            text: row.remarks || row.remark || ''
+        })
+    }
+
+    const handleSaveRemark = async () => {
+        if (!remarkDialog.row) return
+
+        try {
+            await updateProjectRow(id, remarkDialog.row.id, {
+                remarks: remarkDialog.text,
+                remarkMetadata: {
+                    uid: user?.id || user?.uid,
+                    name: user?.displayName || user?.name || 'Unknown',
+                    updatedAt: new Date().toISOString()
+                }
+            })
+
+            // Log Audit Action
+            if (user) {
+                await logAction(user, 'ROW_REMARK_EDITED', 'row', remarkDialog.row.id, {
+                    projectId: id,
+                    content: `Updated remark for row in ${currentTitle}`,
+                    oldRemark: remarkDialog.row.remarks || '',
+                    newRemark: remarkDialog.text
+                })
+            }
+
+            toast.success("Remark updated")
+            setRemarkDialog({ open: false, row: null, text: '' })
+        } catch (error) {
+            toast.error("Failed to save remark")
+        }
+    }
+
     // Send selected rows for review
     // Send rows for review
     const handleSendForReview = async () => {
@@ -868,12 +917,7 @@ export default function ProjectView({ projectId }) {
         }))
     ]
 
-    // Check if any row has remarks to decide whether to show the column
-    // Use all rows (not filtered) to keep column structure stable
-    const hasRemarks = rows.some(row => {
-        const remarkText = row.remarks || row.remark || ''
-        return String(remarkText).trim().length > 0
-    })
+
 
     const columns = [
         ...languageColumns,
@@ -897,24 +941,38 @@ export default function ProjectView({ projectId }) {
                 )
             }
         },
-        // Remarks column - only present if hasRemarks
-        ...(hasRemarks ? [{
+        // Remarks column - Always visible
+        {
             header: "Remarks",
             accessor: "remarks",
             width: "200px",
             minWidth: "150px",
             render: (row) => {
-                // Safely convert to string
-                const remarkText = row.remarks ? String(row.remarks) : ''
-                if (!remarkText.trim()) return <span style={{ color: 'hsl(220, 13%, 91%)' }}>—</span>
+                const remarkText = row.remarks || row.remark || ''
+                const hasRemark = !!remarkText.trim()
 
                 return (
-                    <div className="text-muted-foreground italic truncate max-w-[200px]" title={remarkText}>
-                        {remarkText}
+                    <div
+                        className="group relative flex items-center min-h-[24px] cursor-pointer"
+                        onClick={() => handleOpenRemark(row)}
+                    >
+                        {hasRemark ? (
+                            <div className="flex items-center gap-2 max-w-full">
+                                <span className="text-sm text-muted-foreground italic truncate" title={remarkText}>
+                                    {remarkText}
+                                </span>
+                                <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 text-muted-foreground/50 hover:text-primary transition-colors">
+                                <span className="text-xs opacity-0 group-hover:opacity-100">Add remark</span>
+                                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100" />
+                            </div>
+                        )}
                     </div>
                 )
             }
-        }] : []),
+        },
         {
             header: "Template",
             accessor: "promptId",
@@ -1264,13 +1322,43 @@ export default function ProjectView({ projectId }) {
                 title="Import Translation Rows"
             />
 
+            {/* Send For Review Dialog */}
             <SendForReviewDialog
                 open={sendForReviewOpen}
                 onOpenChange={setSendForReviewOpen}
+                rows={rowsToSend}
+                managers={managers}
                 onConfirm={handleConfirmSendForReview}
                 targetLanguages={targetLanguages}
-                managers={managers}
             />
+
+            {/* Remark Edit Dialog */}
+            <Dialog open={remarkDialog.open} onOpenChange={(open) => !open && setRemarkDialog(prev => ({ ...prev, open: false }))}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Remark</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Textarea
+                            value={remarkDialog.text}
+                            onChange={(e) => setRemarkDialog(prev => ({ ...prev, text: e.target.value }))}
+                            placeholder="Add a remark for this row..."
+                            className="min-h-[100px]"
+                        />
+                        {remarkDialog.row?.remarkMetadata && (
+                            <div className="mt-2 text-xs text-muted-foreground">
+                                Last updated by {remarkDialog.row.remarkMetadata.name} on {new Date(remarkDialog.row.remarkMetadata.updatedAt).toLocaleDateString()}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRemarkDialog(prev => ({ ...prev, open: false }))}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSaveRemark}>Save Remark</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </PageContainer>
     )
 }
