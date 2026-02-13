@@ -6,8 +6,9 @@ import { useAuth } from "@/context/DevAuthContext"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { PageContainer } from "@/components/ui/shared"
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth'
-import { auth } from '@/lib/firebase'
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateProfile } from 'firebase/auth'
+import { auth, db } from '@/lib/firebase'
+import { doc, updateDoc } from 'firebase/firestore'
 
 export default function AccountSettings() {
     const { user } = useAuth()
@@ -17,6 +18,7 @@ export default function AccountSettings() {
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
 
     // Navigation State
     const [activeSection, setActiveSection] = useState('personal')
@@ -55,6 +57,41 @@ export default function AccountSettings() {
             })
         }
     }, [user])
+
+    const handleUpdateProfile = async () => {
+        if (!formData.name.trim()) {
+            toast.error('Name cannot be empty')
+            return
+        }
+
+        setIsUpdatingProfile(true)
+        try {
+            const currentUser = auth.currentUser
+
+            // 1. Update Firebase Auth Profile
+            if (currentUser) {
+                await updateProfile(currentUser, {
+                    displayName: formData.name
+                })
+            }
+
+            // 2. Update Firestore User Document
+            if (user?.id) {
+                const userRef = doc(db, 'users', user.id)
+                await updateDoc(userRef, {
+                    name: formData.name,
+                    // We don't update email here as that requires separate auth flow
+                })
+            }
+
+            toast.success('Profile updated successfully')
+        } catch (error) {
+            console.error('Error updating profile:', error)
+            toast.error('Failed to update profile')
+        } finally {
+            setIsUpdatingProfile(false)
+        }
+    }
 
     const handleUpdatePassword = async () => {
         // Validation
@@ -183,10 +220,10 @@ export default function AccountSettings() {
                                     </Button>
                                     <Button
                                         className="h-10 px-6 rounded-full bg-pink-500 hover:bg-pink-600 text-white shadow-md shadow-pink-500/20 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        disabled={JSON.stringify(formData) === JSON.stringify({ name: user?.name || '', email: user?.email || '' })}
-                                        onClick={() => toast.success("Changes saved!")}
+                                        disabled={isUpdatingProfile || JSON.stringify(formData) === JSON.stringify({ name: user?.name || '', email: user?.email || '' })}
+                                        onClick={handleUpdateProfile}
                                     >
-                                        Save changes
+                                        {isUpdatingProfile ? 'Saving...' : 'Save changes'}
                                     </Button>
                                 </div>
                             </div>

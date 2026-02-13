@@ -216,10 +216,21 @@ export default function PromptLibrary() {
                                 <div onClick={() => handleEdit(template)} className="flex-1 flex flex-col">
                                     {/* Card Header */}
                                     <div className="flex items-start justify-between mb-4">
-                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${isDefault ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
-                                            }`}>
-                                            {categoryLabel}
-                                        </span>
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                            {template.tags && template.tags.length > 0 ? (
+                                                template.tags.map(tag => (
+                                                    <span key={tag} className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${isDefault ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                        {tag}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${isDefault ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
+                                                    }`}>
+                                                    {categoryLabel}
+                                                </span>
+                                            )}
+                                        </div>
 
                                         <div className="relative" data-menu>
                                             {isDefault ? (
