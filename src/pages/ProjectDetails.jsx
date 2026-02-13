@@ -27,7 +27,7 @@ import {
 import { StatusFilterDropdown } from "@/components/ui/StatusFilterDropdown"
 import { getStatusConfig, LANGUAGES } from "@/lib/constants"
 
-import { ConfirmDialog, ProjectSettingsDialog, SendForReviewDialog } from "@/components/dialogs"
+import { ConfirmDialog, ImportFileDialog, ProjectSettingsDialog, SendForReviewDialog } from "@/components/dialogs"
 import { getUsers } from "@/api/firebase"
 import { GlossaryHighlighter } from "@/components/ui/GlossaryHighlighter"
 import { ExportMenu } from "@/components/project"
@@ -99,7 +99,7 @@ export default function ProjectView({ projectId }) {
         }
     }, [templates, selectedPromptId])
 
-    const fileInputRef = useRef(null)
+    const [isImportOpen, setIsImportOpen] = useState(false)
 
     // Parse project ID and page ID from URL
     // Parse project ID and page ID from URL
@@ -331,8 +331,9 @@ export default function ProjectView({ projectId }) {
         }
     }
 
-    const handleImportSheet = async (event) => {
-        const file = event.target.files?.[0]
+    const handleImportSheet = async (fileOrEvent) => {
+        // Support both file object (from dialog) and event (fallback)
+        const file = fileOrEvent?.target ? fileOrEvent.target.files?.[0] : fileOrEvent
         if (!file) return
 
         setIsImporting(true)
@@ -347,17 +348,21 @@ export default function ProjectView({ projectId }) {
                 })).filter(row => row.en)
 
                 if (newRows.length > 0) {
-                    if (typeof addProjectPage === 'function') {
-                        await addProjectPage(id, { name: sheetName }, newRows)
-                    } else {
+                    if (typeof addPageRows === 'function' && getSelectedPageId && getSelectedPageId(id)) {
+                        // Add to CURRENT page
+                        await addPageRows(id, getSelectedPageId(id), newRows)
+                    } else if (typeof addProjectRows === 'function') {
+                        // Fallback for non-paged projects
                         await addProjectRows(id, newRows)
                     }
                 }
             }
+            toast.success("Import successful")
         } catch (error) {
+            console.error("Import error:", error)
+            toast.error("Failed to import file")
         } finally {
             setIsImporting(false)
-            fileInputRef.current.value = ''
         }
     }
 
@@ -984,13 +989,7 @@ export default function ProjectView({ projectId }) {
 
     return (
         <PageContainer>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImportSheet}
-                accept=".xlsx,.xls,.csv,.docx,.pptx"
-                className="hidden"
-            />
+
 
             {/* Page Title - Static */}
             <PageHeader description={project?.description || "Manage your project translations and pages"}>{currentTitle}</PageHeader>
@@ -1032,7 +1031,7 @@ export default function ProjectView({ projectId }) {
                     {!hasSelection && (
                         <PillButton
                             variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => setIsImportOpen(true)}
                             disabled={isImporting}
                         >
                             <Upload className="w-3.5 h-3.5 mr-2" /> Import
@@ -1255,6 +1254,14 @@ export default function ProjectView({ projectId }) {
                 message={`A row with similar content already exists: "${duplicateConfirm?.duplicate?.en?.substring(0, 50)}..."\n\nDo you want to add this row anyway?`}
                 confirmLabel="Add Anyway"
                 variant="default"
+            />
+
+            <ImportFileDialog
+                isOpen={isImportOpen}
+                onClose={() => setIsImportOpen(false)}
+                onImport={handleImportSheet}
+                accept=".xlsx,.xls,.csv"
+                title="Import Translation Rows"
             />
 
             <SendForReviewDialog

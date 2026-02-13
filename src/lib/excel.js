@@ -67,7 +67,11 @@ export async function parseExcelFile(file) {
                         'english': 'en',
                         'eng': 'en',
                         'en': 'en',
-                        '英文': 'en'
+                        '英文': 'en',
+                        'english (en)': 'en',
+                        'bm': 'my',
+                        'mandarin': 'zh',
+                        '中文': 'zh',
                     }
 
                     Object.values(LANGUAGES).forEach(lang => {

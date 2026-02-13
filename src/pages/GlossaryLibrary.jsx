@@ -28,7 +28,8 @@ import { DataTable, TABLE_STYLES } from "@/components/ui/DataTable"
 import { PageHeader, SearchInput, StatusDot } from "@/components/ui/common"
 import { exportGlossaryToExcel } from "@/lib/export"
 import * as XLSX from "xlsx"
-import ImportGlossaryDialog from "@/components/dialogs/ImportGlossaryDialog"
+import { ImportFileDialog } from "@/components/dialogs"
+import { parseExcelFile } from "@/lib/excel"
 import { toast } from "sonner"
 import { getAI } from "@/api/ai"
 import Pagination from "@/components/Pagination"
@@ -60,7 +61,6 @@ export default function Glossary() {
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isTranslating, setIsTranslating] = useState(false)
     const [statusFilter, setStatusFilter] = useState([]) // Multi-selectable status filter
-    const fileInputRef = useRef(null)
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1)
@@ -186,12 +186,7 @@ export default function Glossary() {
         }
     }
 
-    const handleImportFromFile = (e) => {
-        const file = e.target.files?.[0]
-        if (file) {
-            setIsImportOpen(true)
-        }
-    }
+
 
     // Filter and sort logic
     const filteredTerms = (terms || [])
@@ -459,6 +454,36 @@ export default function Glossary() {
         return { duplicates: duplicateList, uniqueTerms }
     }
 
+    const handleImportFile = async (file) => {
+        if (!file) return
+
+        try {
+            const parsedData = await parseExcelFile(file)
+            let allTerms = []
+
+            for (const [sheetName, sheetData] of Object.entries(parsedData)) {
+                const terms = sheetData.entries.map(entry => ({
+                    en: entry.english || entry.en || '',
+                    my: entry.malay || entry.my || '',
+                    cn: entry.chinese || entry.zh || entry.cn || '',
+                    category: entry.category || 'General',
+                    status: 'draft',
+                    remark: entry.remark || ''
+                })).filter(term => term.en)
+                allTerms = [...allTerms, ...terms]
+            }
+
+            if (allTerms.length > 0) {
+                await handleImport(allTerms)
+            } else {
+                toast.error("No valid terms found in file")
+            }
+        } catch (error) {
+            console.error("Import error:", error)
+            toast.error("Failed to parse file")
+        }
+    }
+
     const handleImport = async (newTerms) => {
         try {
             // Check for duplicates
@@ -537,7 +562,7 @@ export default function Glossary() {
                     <GlossaryHighlighter
                         text={row.en || ''}
                         language="en"
-                        glossaryTerms={terms.filter(t => t.id !== row.id)}
+                        glossaryTerms={terms.filter(t => t.id !== row.id && (t.status === 'approved' || t.status === 'published'))}
                         hoveredTermId={hoveredTermId}
                         onHover={setHoveredTermId}
                     />
@@ -554,7 +579,7 @@ export default function Glossary() {
                     <GlossaryHighlighter
                         text={row.my || ''}
                         language="my"
-                        glossaryTerms={terms.filter(t => t.id !== row.id)}
+                        glossaryTerms={terms.filter(t => t.id !== row.id && (t.status === 'approved' || t.status === 'published'))}
                         hoveredTermId={hoveredTermId}
                         onHover={setHoveredTermId}
                     />
@@ -571,7 +596,7 @@ export default function Glossary() {
                     <GlossaryHighlighter
                         text={row.cn || ''}
                         language="zh"
-                        glossaryTerms={terms.filter(t => t.id !== row.id)}
+                        glossaryTerms={terms.filter(t => t.id !== row.id && (t.status === 'approved' || t.status === 'published'))}
                         hoveredTermId={hoveredTermId}
                         onHover={setHoveredTermId}
                     />
@@ -683,13 +708,7 @@ export default function Glossary() {
     return (
         <TooltipProvider>
             <PageContainer>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImportFromFile}
-                    accept=".xlsx,.xls,.csv,.docx"
-                    className="hidden"
-                />
+
 
                 {/* Page Title */}
                 {/* Page Title */}
@@ -1002,10 +1021,12 @@ export default function Glossary() {
                     />
                 )}
 
-                <ImportGlossaryDialog
-                    open={isImportOpen}
-                    onOpenChange={setIsImportOpen}
-                    onImport={handleImport}
+                <ImportFileDialog
+                    isOpen={isImportOpen}
+                    onClose={() => setIsImportOpen(false)}
+                    onImport={handleImportFile}
+                    title="Import Glossary Terms"
+                    accept=".xlsx,.xls,.csv"
                 />
 
                 <DuplicateGlossaryDialog
