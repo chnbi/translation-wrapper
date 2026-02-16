@@ -152,7 +152,7 @@ export default function Layout({ children, breadcrumbs = [], noPadding = false }
             <AppSidebar />
             <SidebarInset className="bg-app-background">
                 <TopBar breadcrumbs={breadcrumbs} />
-                <div className={`flex flex-1 flex-col gap-8 ${noPadding ? 'p-0' : 'px-10 py-10'}`}>
+                <div className={`flex flex-1 flex-col gap-8 w-full overflow-x-hidden ${noPadding ? 'p-0' : 'px-10 py-10'}`}>
                     {children}
                 </div>
             </SidebarInset>

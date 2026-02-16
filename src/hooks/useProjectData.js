@@ -201,7 +201,7 @@ export function useProjectData() {
     }, [dataSource])
 
     // Update a single row
-    const updateProjectRow = useCallback((projectId, rowId, updates) => {
+    const updateProjectRow = useCallback(async (projectId, rowId, updates) => {
         // First, determine which page contains this row (BEFORE any state updates)
         let pageIdForRow = null
         const projectData = projectPages[projectId]
@@ -301,11 +301,11 @@ export function useProjectData() {
             if (pageIdForRow) {
                 // Row is in a page - use page-specific update
                 // Update page row
-                dbService.updatePageRow(projectId, pageIdForRow, rowId, updates).catch(() => { })
+                await dbService.updatePageRow(projectId, pageIdForRow, rowId, updates)
             } else {
                 // Row is in legacy flat structure
                 // Update legacy row
-                dbService.updateProjectRow(projectId, rowId, updates).catch(() => { })
+                await dbService.updateProjectRow(projectId, rowId, updates)
             }
         }
     }, [dataSource, projectPages, projects, user, role, updateProject])

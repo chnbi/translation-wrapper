@@ -11,7 +11,7 @@ import { Check, CheckSquare, Square, ArrowUpDown } from 'lucide-react'
 // ==========================================
 export const TABLE_STYLES = {
     // Container
-    container: 'rounded-2xl bg-white dark:bg-slate-900 overflow-hidden border border-gray-100 dark:border-slate-800',
+    container: 'w-full rounded-2xl bg-white dark:bg-slate-900 overflow-hidden border border-gray-100 dark:border-slate-800',
 
     // Padding values (kept for style props that need strict values)
     cellPaddingX: '12px',
@@ -65,6 +65,40 @@ export function DataTable({
     const mouseDownPos = React.useRef({ x: 0, y: 0 })
     const isDragging = React.useRef(false)
 
+    // Refs for scroll sync
+    const topScrollRef = React.useRef(null)
+    const tableContainerRef = React.useRef(null)
+    const [tableWidth, setTableWidth] = React.useState(0)
+
+    // Sync scroll handlers
+    const handleTopScroll = (e) => {
+        if (tableContainerRef.current) {
+            tableContainerRef.current.scrollLeft = e.target.scrollLeft
+        }
+    }
+
+    const handleTableScroll = (e) => {
+        if (topScrollRef.current) {
+            topScrollRef.current.scrollLeft = e.target.scrollLeft
+        }
+    }
+
+    // Measure table width for the dummy scrollbar
+    React.useEffect(() => {
+        if (tableContainerRef.current) {
+            const table = tableContainerRef.current.querySelector('table')
+            if (table) {
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        setTableWidth(entry.scrollWidth)
+                    }
+                })
+                resizeObserver.observe(table)
+                return () => resizeObserver.disconnect()
+            }
+        }
+    }, [data, columns]) // Re-measure when data/columns change
+
     // Normalize selection check
     const isSelected = (id) => {
         if (Array.isArray(selectedIds)) return selectedIds.includes(id)
@@ -77,8 +111,43 @@ export function DataTable({
 
     return (
         <div className={TABLE_STYLES.container}>
-            <div style={{ overflowX: scrollable ? 'auto' : 'visible' }}>
-                <table className="w-full border-collapse" style={{ tableLayout: scrollable ? 'auto' : 'fixed', minWidth: scrollable ? 'max-content' : undefined }}>
+            {/* Top Scrollbar - Only visible if scrollable */}
+            {scrollable && (
+                <div
+                    ref={topScrollRef}
+                    onScroll={handleTopScroll}
+                    style={{
+                        overflowX: 'auto',
+                        overflowY: 'hidden',
+                        height: '12px', // Thin scrollbar area
+                        marginBottom: '-12px', // Pull table up slightly or just stack it
+                        position: 'relative',
+                        zIndex: 10,
+                        width: '100%'
+                    }}
+                    className="no-scrollbar-vertical" // meaningful class for potentially hiding vertical
+                >
+                    <div style={{ width: tableWidth, height: '1px' }}></div>
+                </div>
+            )}
+
+            <div
+                ref={tableContainerRef}
+                onScroll={handleTableScroll}
+                style={{ overflowX: scrollable ? 'auto' : 'visible' }}
+            >
+                <table
+                    className="w-full border-collapse table-fixed"
+                    style={{
+                        minWidth: scrollable
+                            ? (columns.reduce((total, col) => {
+                                const widthVal = (col.minWidth || col.width || '0');
+                                const pxVal = parseInt(widthVal);
+                                return total + (isNaN(pxVal) ? 100 : pxVal);
+                            }, 0) + (onToggleSelect ? parseInt(TABLE_STYLES.checkboxColumnWidth) : 0)) + 'px'
+                            : '100%'
+                    }}
+                >
                     {/* Colgroup defines fixed column widths */}
                     <colgroup>
                         {onToggleSelect && <col style={{ width: TABLE_STYLES.checkboxColumnWidth }} />}
@@ -113,6 +182,7 @@ export function DataTable({
                                         padding: TABLE_STYLES.headerPadding,
                                         textAlign: col.align || 'left',
                                         cursor: col.sortable ? 'pointer' : 'default',
+                                        minWidth: col.minWidth,
                                     }}
                                     onClick={() => col.sortable && onSort && onSort(col.accessor)}
                                 >
@@ -158,20 +228,17 @@ export function DataTable({
                                             }
                                         }}
                                         onClick={(e) => {
-                                            if (isDragging.current) {
-                                                e.preventDefault()
-                                                e.stopPropagation()
-                                                return
+                                            // Handle click unless dragging
+                                            if (!isDragging.current && onRowClick) {
+                                                onRowClick(row)
                                             }
-                                            onRowClick && onRowClick(row)
                                         }}
-                                        className={`transition-colors text-slate-900 dark:text-slate-100 ${selected ? 'bg-primary/5 dark:bg-primary/10' : 'bg-transparent'
-                                            } ${onRowClick ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50" : ""}`}
+                                        className={`group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${selected ? 'bg-indigo-50/60 dark:bg-indigo-900/20' : ''}`}
                                         style={customStyle}
                                     >
                                         {/* Checkbox Cell */}
                                         {onToggleSelect && (
-                                            <td style={{ padding: TABLE_STYLES.cellPadding, textAlign: 'center' }}>
+                                            <td className="w-[52px]" style={{ padding: TABLE_STYLES.cellPadding, textAlign: 'center' }}>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
@@ -182,34 +249,27 @@ export function DataTable({
                                                     {selected ? (
                                                         <CheckSquare className="w-4 h-4 text-primary" />
                                                     ) : (
-                                                        <Square className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                                                        <Square className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-slate-400" />
                                                     )}
                                                 </button>
                                             </td>
                                         )}
 
                                         {/* Data Cells */}
-                                        {columns.map((col, colIdx) => {
-                                            let cellContent = row[col.accessor]
-                                            if (col.render) {
-                                                cellContent = col.render(row)
-                                            }
-
-                                            return (
-                                                <td
-                                                    key={colIdx}
-                                                    style={{
-                                                        padding: TABLE_STYLES.cellPadding,
-                                                        fontSize: TABLE_STYLES.fontSize,
-                                                        textAlign: col.align || 'left',
-                                                        color: col.color
-                                                    }}
-                                                    className={!col.color ? 'text-slate-700 dark:text-slate-200' : ''}
-                                                >
-                                                    {cellContent}
-                                                </td>
-                                            )
-                                        })}
+                                        {columns.map((col, idx) => (
+                                            <td
+                                                key={idx}
+                                                className={TABLE_STYLES.cellClass}
+                                                style={{
+                                                    padding: TABLE_STYLES.cellPadding,
+                                                    textAlign: col.align || 'left',
+                                                    verticalAlign: 'top', // Align top for better readability
+                                                    ...col.style
+                                                }}
+                                            >
+                                                {col.render ? col.render(row) : (row[col.accessor] || '')}
+                                            </td>
+                                        ))}
                                     </tr>
                                 )
                             })

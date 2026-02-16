@@ -111,7 +111,6 @@ export default function Glossary() {
 
 
             // Call translation API - use en field for source text
-            // Call translation API - use en field for source text
             const results = await getAI().generateBatch(
                 termsToTranslate.map(term => ({ id: term.id, text: term.en })),
                 {
@@ -151,7 +150,6 @@ export default function Glossary() {
         }
     }
 
-    // Send for review - change status of terms with complete translations
     // Send for review - change status of terms with complete translations
     const handleSendForReview = async () => {
         let termsToSend = []

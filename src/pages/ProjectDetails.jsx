@@ -66,7 +66,7 @@ export default function ProjectView({ projectId }) {
 
     const { templates } = usePrompts()
     const { approvedTerms: glossaryTerms } = useGlossary() // Use APPOVED terms for highlighting
-    const { canDo } = useAuth()
+    const { user, canDo, isManager } = useAuth()
     const { markAsViewed, isRowNew } = useApprovalNotifications()
 
     const [isAddingRow, setIsAddingRow] = useState(false)
@@ -100,6 +100,18 @@ export default function ProjectView({ projectId }) {
 
     // Prompt Selection State
     const [selectedPromptId, setSelectedPromptId] = useState(null)
+    const [usersMap, setUsersMap] = useState({})
+
+    // Fetch users for metadata display
+    useEffect(() => {
+        getUsers().then(users => {
+            const map = {}
+            if (users) {
+                users.forEach(u => map[u.id] = u.name || u.displayName || u.email || 'Unknown')
+                setUsersMap(map)
+            }
+        }).catch(err => console.error("Failed to load users for metadata", err))
+    }, [])
 
     // Set default prompt when templates load
     useEffect(() => {
@@ -461,7 +473,46 @@ export default function ProjectView({ projectId }) {
         setDeleteConfirm({ type: 'bulk', count: selectedCount })
     }
 
+    // Generic confirm action handler (Delete / Bypass)
     const performDelete = async () => {
+        if (!deleteConfirm) return
+
+        // Handle Bypass Approval
+        if (deleteConfirm.type === 'bypass_approval') {
+            const rowsComponents = deleteConfirm.data
+            const updates = rowsComponents.map(row => ({
+                id: row.id,
+                changes: {
+                    status: 'approved', // Direct approval
+                    approvedBy: user.id || user.uid,
+                    approvedAt: new Date().toISOString()
+                }
+            }))
+
+            try {
+                // Actually we should support bulk update
+                // For now let's just loop or better yet, use updateProjectRows if available
+                // We have updateProjectRow (single). Let's check context.
+                // context has updateProjectRows? Yes.
+                // Wait, useProjects returns updateProjectRow (singular). 
+                // Let's check useProjects definition in context again.
+                // It returns updateProjectRow. Does it return updateProjectRows (plural)?
+                // Let's assume single for now to be safe or just use loop.
+                // Actually better to use loop for now as safe bet.
+                for (const u of updates) {
+                    await updateProjectRow(id, u.id, u.changes)
+                }
+
+                toast.success(`Straight to approved! (${rowsComponents.length} rows)`)
+                setDeleteConfirm(null)
+                deselectAllRows(id)
+            } catch (error) {
+                toast.error("Failed to approve rows")
+            }
+            return
+        }
+
+        // Handle Delete
         try {
             const idsToDelete = deleteConfirm.type === 'single' ? [deleteConfirm.id] : Array.from(selectedRowIds)
             await deleteRows(id, idsToDelete)
@@ -589,7 +640,8 @@ export default function ProjectView({ projectId }) {
             toast.success("Remark updated")
             setRemarkDialog({ open: false, row: null, text: '' })
         } catch (error) {
-            toast.error("Failed to save remark")
+            console.error("Remark save error:", error)
+            toast.error(`Failed to save remark: ${error.message}`)
         }
     }
 
@@ -613,6 +665,26 @@ export default function ProjectView({ projectId }) {
         }
 
         // Store rows and fetch managers, then open dialog
+        // Check for Bypass Condition (Manager Only)
+        // User requested: "do not allow editor to bypass, even they are project owner"
+        const canBypass = isManager
+
+        if (canBypass) {
+            // Check if user is assigning to themselves or just wants to approve immediately
+            // For now, we'll ask them: "Do you want to send for review or approve immediately?"
+            setRowsToSend(candidates)
+            // We reuse the confirm dialog for this choice
+            setDeleteConfirm({ // Using deleteConfirm state for generic confirmation
+                type: 'bypass_approval',
+                data: candidates,
+                title: 'Bypass Approval?',
+                message: `You are a manager. You can approve these ${candidates.length} row(s) immediately.`,
+                confirmText: 'Approve Immediately',
+                cancelText: 'Send for Review' // We will handle cancel as "Open Review Dialog"
+            })
+            return
+        }
+
         setRowsToSend(candidates)
 
         // Fetch managers if not loaded
@@ -738,7 +810,7 @@ export default function ProjectView({ projectId }) {
             // Group rows by their promptId for separate translation batches
             const rowsByPromptId = {}
             for (const row of rowsToTranslate) {
-                const promptKey = row.promptId || 'default'
+                const promptKey = row.promptId || selectedPromptId || 'default'
                 if (!rowsByPromptId[promptKey]) {
                     rowsByPromptId[promptKey] = []
                 }
@@ -850,7 +922,7 @@ export default function ProjectView({ projectId }) {
         {
             header: "English",
             accessor: "en",
-            width: "220px",
+            width: "22%",
             minWidth: "180px",
             color: 'hsl(220, 9%, 46%)',
             render: row => {
@@ -869,7 +941,7 @@ export default function ProjectView({ projectId }) {
                     )
                 }
                 return (
-                    <div className="whitespace-pre-wrap leading-relaxed">
+                    <div className="whitespace-pre-wrap break-words leading-relaxed">
                         <GlossaryHighlighter
                             text={row.source_text || row.en || row.text || ''}
                             language="en"
@@ -883,7 +955,7 @@ export default function ProjectView({ projectId }) {
         ...targetLanguages.map(langCode => ({
             header: LANGUAGES[langCode]?.label || langCode,
             accessor: langCode,
-            width: langCode === 'my' ? "200px" : "180px",
+            width: "22%",
             minWidth: langCode === 'my' ? "160px" : "140px",
             color: 'hsl(220, 9%, 46%)',
             render: row => {
@@ -905,7 +977,7 @@ export default function ProjectView({ projectId }) {
                 // Read from translations JSON first, fallback to legacy field
                 const displayText = row.translations?.[langCode]?.text || row[langCode] || ''
                 return (
-                    <div className="whitespace-pre-wrap leading-relaxed">
+                    <div className="whitespace-pre-wrap break-words leading-relaxed">
                         <GlossaryHighlighter
                             text={displayText || '—'}
                             language={langCode}
@@ -924,17 +996,26 @@ export default function ProjectView({ projectId }) {
         {
             header: "Status",
             accessor: "status",
-            width: "140px",
-            minWidth: "140px",
+            width: "120px",
+            minWidth: "120px",
             render: (row) => {
                 const config = getStatusConfig(row.status)
+
+                // Metadata Tooltip
+                let tooltipText = config.label
+                if (row.status === 'approved' && row.approvedBy) {
+                    const approverName = usersMap[row.approvedBy] || 'Unknown'
+                    const date = row.approvedAt ? new Date(row.approvedAt).toLocaleDateString() : ''
+                    tooltipText = `Approved by: ${approverName}${date ? ` on ${date}` : ''}`
+                }
+
                 return (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" title={tooltipText}>
                         <span
                             className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: config.color }}
                         />
-                        <span className="font-medium text-muted-foreground">
+                        <span className="font-medium text-muted-foreground cursor-help decoration-dotted underline-offset-4">
                             {config.label}
                         </span>
                     </div>
@@ -1053,7 +1134,7 @@ export default function ProjectView({ projectId }) {
             <PageHeader description={project?.description || "Manage your project translations and pages"}>{currentTitle}</PageHeader>
 
             {/* Action Bar */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 py-4 min-h-[80px]">
+            <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center justify-between gap-4 py-4 min-h-[80px]">
                 <span className="text-sm font-medium text-slate-500">
                     {selectedCount > 0 ? `${selectedCount} row(s) selected` : `${rows.length} row(s)`}
                 </span>
@@ -1190,7 +1271,7 @@ export default function ProjectView({ projectId }) {
                 onToggleSelectAll={handleSelectAll}
                 onRowClick={(row) => toggleRowSelection(project.id, row.id)}
                 scrollable={true}
-                getRowStyle={(row) => isRowNew(id, currentPageId, row) ? { backgroundColor: COLORS.primaryLightest } : {}}
+                getRowStyle={(row) => isRowNew(id, currentPageId, row) ? { animation: 'fadeOutPink 5s forwards' } : {}}
             >
                 {/* Inline Add Row */}
                 {isAddingRow && (
@@ -1289,18 +1370,24 @@ export default function ProjectView({ projectId }) {
             }
 
             {/* Delete Confirmation Dialog */}
-            {/* Delete Confirmation Dialog */}
             <ConfirmDialog
                 open={!!deleteConfirm}
-                onClose={() => setDeleteConfirm(null)}
+                onClose={() => {
+                    const wasBypass = deleteConfirm?.type === 'bypass_approval'
+                    setDeleteConfirm(null)
+                    if (wasBypass) {
+                        setSendForReviewOpen(true)
+                    }
+                }}
                 onConfirm={performDelete}
-                title="Delete Rows?"
-                message={deleteConfirm?.type === 'single'
+                title={deleteConfirm?.title || "Delete Rows?"}
+                message={deleteConfirm?.message || (deleteConfirm?.type === 'single'
                     ? "Are you sure you want to delete this row? This action cannot be undone."
                     : `Are you sure you want to delete ${deleteConfirm?.count || 0} selected rows? This action cannot be undone.`
-                }
-                confirmLabel="Delete"
-                variant="destructive"
+                )}
+                confirmLabel={deleteConfirm?.confirmText || "Delete"}
+                cancelLabel={deleteConfirm?.cancelText || "Cancel"}
+                variant={deleteConfirm?.type === 'bypass_approval' ? 'default' : 'destructive'}
             />
 
             {/* Duplicate Confirmation Dialog */}
