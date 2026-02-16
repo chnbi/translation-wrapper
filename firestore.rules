@@ -32,6 +32,12 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
     }
 
+    // Check if the update is changing the status field to 'approved'
+    function isApprovingStatus() {
+      return request.resource.data.status == 'approved'
+          && (resource == null || resource.data.status != 'approved');
+    }
+
     // ============================================================
     // Users Collection
     // ============================================================
@@ -63,26 +69,35 @@ service cloud.firestore {
     // ============================================================
 
     match /projects/{projectId} {
-      // All authenticated users can read and write projects
+      // All authenticated users can read projects
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
-      allow delete: if isAuth();
+
+      // Only managers+ can create, update, or delete projects
+      allow create: if isManagerOrAbove();
+      allow update: if isManagerOrAbove();
+      allow delete: if isManagerOrAbove();
 
       // Project Rows (sub-collection)
       match /rows/{rowId} {
         allow read: if isAuth();
+
+        // Any authenticated user can create rows (editors add content)
         allow create: if isAuth();
-        allow update: if isAuth();
-        allow delete: if isAuth();
+
+        // Any user can update rows, BUT only managers+ can approve
+        // (set status to 'approved')
+        allow update: if isAuth() && (!isApprovingStatus() || isManagerOrAbove());
+
+        // Only managers+ can delete rows
+        allow delete: if isManagerOrAbove();
       }
 
       // Project Pages (sub-collection)
       match /pages/{pageId} {
         allow read: if isAuth();
-        allow create: if isAuth();
-        allow update: if isAuth();
-        allow delete: if isAuth();
+        allow create: if isManagerOrAbove();
+        allow update: if isManagerOrAbove();
+        allow delete: if isManagerOrAbove();
       }
     }
 
@@ -91,10 +106,14 @@ service cloud.firestore {
     // ============================================================
 
     match /glossary_terms/{termId} {
-      // All authenticated users can read and create terms
+      // All authenticated users can read terms
       allow read: if isAuth();
+
+      // Any authenticated user can create terms
       allow create: if isAuth();
-      allow update: if isAuth();
+
+      // Any user can update, BUT only managers+ can approve
+      allow update: if isAuth() && (!isApprovingStatus() || isManagerOrAbove());
 
       // Only managers+ can delete glossary terms
       allow delete: if isManagerOrAbove();
@@ -120,7 +139,13 @@ service cloud.firestore {
       // All authenticated users can read and create templates
       allow read: if isAuth();
       allow create: if isAuth();
-      allow update: if isAuth();
+
+      // Any user can update, BUT only managers+ can publish
+      allow update: if isAuth() && (
+        request.resource.data.status != 'published'
+        || resource.data.status == 'published'
+        || isManagerOrAbove()
+      );
 
       // Only managers+ can delete templates
       allow delete: if isManagerOrAbove();

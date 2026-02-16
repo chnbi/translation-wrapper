@@ -10,7 +10,8 @@ import {
     deleteDoc,
     query,
     orderBy,
-    serverTimestamp
+    serverTimestamp,
+    increment
 } from 'firebase/firestore';
 
 const COLLECTION = 'prompt_templates';
@@ -89,9 +90,12 @@ export async function createTemplate(templateData) {
             ...templateData,
             status: templateData.status || 'draft',
             author: templateData.author || 'You',
-            createdAt: serverTimestamp()
+            createdBy: templateData.createdBy || null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            version: 1
         });
-        return { id: docRef.id, ...templateData };
+        return { id: docRef.id, ...templateData, version: 1 };
     } catch (error) {
         console.error('Error creating template:', error);
         throw error;
@@ -101,7 +105,11 @@ export async function createTemplate(templateData) {
 export async function updateTemplate(id, updates) {
     try {
         const docRef = doc(db, COLLECTION, id);
-        await updateDoc(docRef, updates);
+        await updateDoc(docRef, {
+            ...updates,
+            updatedAt: serverTimestamp(),
+            version: increment(1)
+        });
     } catch (error) {
         console.error('Error updating template:', error);
         throw error;

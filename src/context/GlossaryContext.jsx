@@ -120,7 +120,12 @@ export function GlossaryProvider({ children }) {
             cn: term.cn || term.chinese || '',
             category: term.category || 'General',
             remark: term.remark || '',
-            status: term.status || 'draft'
+            status: term.status || 'draft',
+            createdBy: user ? {
+                uid: user.id || user.uid,
+                email: user.email,
+                name: user.displayName || user.name || user.email?.split('@')[0]
+            } : null
         }
 
         try {
@@ -149,7 +154,12 @@ export function GlossaryProvider({ children }) {
             cn: term.cn || '',
             category: term.category || 'General',
             remark: term.remark || '',
-            status: term.status || 'draft'
+            status: term.status || 'draft',
+            createdBy: user ? {
+                uid: user.id || user.uid,
+                email: user.email,
+                name: user.displayName || user.name || user.email?.split('@')[0]
+            } : null
         }))
 
         try {
@@ -174,6 +184,15 @@ export function GlossaryProvider({ children }) {
             let finalUpdates = { ...updates }
             if (isContentEdit && !isStatusChange && isApproved) {
                 finalUpdates.status = 'draft'
+            }
+
+            // Add lastModifiedBy metadata
+            if (user) {
+                finalUpdates.lastModifiedBy = {
+                    uid: user.id || user.uid,
+                    email: user.email,
+                    name: user.displayName || user.name || user.email?.split('@')[0]
+                }
             }
 
             await dbService.updateGlossaryTerm(id, finalUpdates)
@@ -201,7 +220,11 @@ export function GlossaryProvider({ children }) {
         try {
             const approvalData = {
                 status: 'approved',
-                approvedBy: user.id || user.uid,
+                approvedBy: {
+                    uid: user.id || user.uid,
+                    email: user.email,
+                    name: user.displayName || user.name || user.email?.split('@')[0]
+                },
                 approvedAt: new Date().toISOString()
             }
 

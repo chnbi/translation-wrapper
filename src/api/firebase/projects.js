@@ -13,7 +13,8 @@ import {
     orderBy,
     serverTimestamp,
     writeBatch,
-    collectionGroup
+    collectionGroup,
+    increment
 } from 'firebase/firestore';
 
 const COLLECTION = 'projects';
@@ -50,14 +51,17 @@ export async function createProject(projectData) {
         const docRef = await addDoc(collection(db, COLLECTION), {
             ...projectData,
             ownerId: projectData.ownerId || null, // Capture owner
+            createdBy: projectData.createdBy || null, // Who created it
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            version: 1,
             status: projectData.status || 'draft'
         });
         return {
             id: docRef.id,
             ...projectData,
             status: projectData.status || 'draft',
+            version: 1,
             createdAt: new Date().toISOString(), // Optimistic return
             updatedAt: new Date().toISOString()
         };
@@ -72,7 +76,8 @@ export async function updateProject(projectId, updates) {
         const docRef = doc(db, COLLECTION, projectId);
         await updateDoc(docRef, {
             ...updates,
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            version: increment(1)
         });
     } catch (error) {
         console.error('Error updating project:', error);

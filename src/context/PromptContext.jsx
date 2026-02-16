@@ -82,6 +82,11 @@ export function PromptProvider({ children }) {
             iconColor: template.iconColor || 'text-zinc-600 dark:text-zinc-400',
             iconName: template.iconName || 'FileText',
             author: template.author || 'You',
+            createdBy: user ? {
+                uid: user.id || user.uid,
+                email: user.email,
+                name: user.displayName || user.name || user.email?.split('@')[0]
+            } : null
         }
 
         try {
@@ -105,8 +110,20 @@ export function PromptProvider({ children }) {
     const updateTemplate = useCallback(async (id, updates) => {
         const existingTemplate = templates.find(t => t.id === id)
         try {
-            await dbService.updateTemplate(id, updates)
-            const updatedTemplate = { ...existingTemplate, ...updates }
+            // Add lastModifiedBy metadata
+            const updatesWithMeta = {
+                ...updates,
+                ...(user ? {
+                    lastModifiedBy: {
+                        uid: user.id || user.uid,
+                        email: user.email,
+                        name: user.displayName || user.name || user.email?.split('@')[0]
+                    }
+                } : {})
+            }
+
+            await dbService.updateTemplate(id, updatesWithMeta)
+            const updatedTemplate = { ...existingTemplate, ...updatesWithMeta }
             setTemplates(prev => prev.map(t => t.id === id ? updatedTemplate : t))
 
             // Audit log - check if this is a publish action

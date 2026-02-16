@@ -11,7 +11,8 @@ import {
     where,
     orderBy,
     serverTimestamp,
-    writeBatch
+    writeBatch,
+    increment
 } from 'firebase/firestore';
 
 const TERMS_COLLECTION = 'glossary_terms';
@@ -52,9 +53,12 @@ export async function createGlossaryTerm(termData) {
         const docRef = await addDoc(collection(db, TERMS_COLLECTION), {
             ...termData,
             status: termData.status || 'draft',
-            createdAt: serverTimestamp()
+            createdBy: termData.createdBy || null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            version: 1
         });
-        return { id: docRef.id, ...termData };
+        return { id: docRef.id, ...termData, version: 1 };
     } catch (error) {
         console.error('Error creating glossary term:', error);
         throw error;
@@ -71,14 +75,16 @@ export async function createGlossaryTerms(termsArray) {
             const data = {
                 ...term,
                 status: term.status || 'draft',
-                createdAt: serverTimestamp()
+                createdBy: term.createdBy || null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                version: 1
             };
             batch.set(docRef, data);
             results.push({ id: docRef.id, ...data });
         });
 
         await batch.commit();
-        // Terms created successfully
         return results;
     } catch (error) {
         console.error('Error creating glossary terms:', error);
@@ -89,7 +95,11 @@ export async function createGlossaryTerms(termsArray) {
 export async function updateGlossaryTerm(id, updates) {
     try {
         const docRef = doc(db, TERMS_COLLECTION, id);
-        await updateDoc(docRef, updates);
+        await updateDoc(docRef, {
+            ...updates,
+            updatedAt: serverTimestamp(),
+            version: increment(1)
+        });
     } catch (error) {
         console.error('Error updating glossary term:', error);
         throw error;

@@ -484,21 +484,16 @@ export default function ProjectView({ projectId }) {
                 id: row.id,
                 changes: {
                     status: 'approved', // Direct approval
-                    approvedBy: user.id || user.uid,
+                    approvedBy: {
+                        uid: user.id || user.uid,
+                        email: user.email,
+                        name: user.displayName || user.name || user.email?.split('@')[0]
+                    },
                     approvedAt: new Date().toISOString()
                 }
             }))
 
             try {
-                // Actually we should support bulk update
-                // For now let's just loop or better yet, use updateProjectRows if available
-                // We have updateProjectRow (single). Let's check context.
-                // context has updateProjectRows? Yes.
-                // Wait, useProjects returns updateProjectRow (singular). 
-                // Let's check useProjects definition in context again.
-                // It returns updateProjectRow. Does it return updateProjectRows (plural)?
-                // Let's assume single for now to be safe or just use loop.
-                // Actually better to use loop for now as safe bet.
                 for (const u of updates) {
                     await updateProjectRow(id, u.id, u.changes)
                 }
@@ -585,7 +580,6 @@ export default function ProjectView({ projectId }) {
                 en: editingRowData.en, // Legacy field
                 translations: updatedTranslations,
                 status: 'draft', // Reset row status
-                // Also write legacy fields for compatibility
                 ...Object.fromEntries(targetLanguages.map(lang => [lang, editingRowData[lang] || '']))
             })
             toast.success('Row updated')
@@ -646,7 +640,6 @@ export default function ProjectView({ projectId }) {
     }
 
     // Send selected rows for review
-    // Send rows for review
     const handleSendForReview = async () => {
         let candidates = []
 
@@ -680,7 +673,7 @@ export default function ProjectView({ projectId }) {
                 title: 'Bypass Approval?',
                 message: `You are a manager. You can approve these ${candidates.length} row(s) immediately.`,
                 confirmText: 'Approve Immediately',
-                cancelText: 'Send for Review' // We will handle cancel as "Open Review Dialog"
+                cancelText: 'Send for Review'
             })
             return
         }
@@ -976,6 +969,8 @@ export default function ProjectView({ projectId }) {
                 }
                 // Read from translations JSON first, fallback to legacy field
                 const displayText = row.translations?.[langCode]?.text || row[langCode] || ''
+                const translationMeta = row.translations?.[langCode] || {}
+                const hasRejectionRemark = translationMeta.status === 'changes' && translationMeta.remark
                 return (
                     <div className="whitespace-pre-wrap break-words leading-relaxed">
                         <GlossaryHighlighter
@@ -983,6 +978,12 @@ export default function ProjectView({ projectId }) {
                             language={langCode}
                             glossaryTerms={glossaryTerms}
                         />
+                        {hasRejectionRemark && (
+                            <div className="text-[11px] text-rose-500 mt-1.5 italic flex items-start gap-1 bg-rose-50 rounded px-1.5 py-1 border border-rose-100">
+                                <span className="shrink-0">💬</span>
+                                <span>{translationMeta.remark}</span>
+                            </div>
+                        )}
                     </div>
                 )
             }
@@ -1004,9 +1005,19 @@ export default function ProjectView({ projectId }) {
                 // Metadata Tooltip
                 let tooltipText = config.label
                 if (row.status === 'approved' && row.approvedBy) {
-                    const approverName = usersMap[row.approvedBy] || 'Unknown'
+                    const approverName = typeof row.approvedBy === 'object'
+                        ? row.approvedBy.name || row.approvedBy.email || 'Unknown'
+                        : usersMap[row.approvedBy] || 'Unknown'
                     const date = row.approvedAt ? new Date(row.approvedAt).toLocaleDateString() : ''
                     tooltipText = `Approved by: ${approverName}${date ? ` on ${date}` : ''}`
+                } else if (row.status === 'changes') {
+                    // Gather rejection remarks from all languages
+                    const remarks = Object.entries(row.translations || {})
+                        .filter(([_, t]) => t.remark && t.status === 'changes')
+                        .map(([lang, t]) => `${LANGUAGES[lang]?.label || lang}: ${t.remark}`)
+                    if (remarks.length > 0) {
+                        tooltipText = `Changes requested:\n${remarks.join('\n')}`
+                    }
                 }
 
                 return (

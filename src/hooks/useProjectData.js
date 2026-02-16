@@ -221,7 +221,11 @@ export function useProjectData() {
             const project = projects.find(p => p.id === projectId)
             if (canBypassApproval(project)) {
                 updates.status = 'approved'
-                updates.approvedBy = user?.id || user?.uid
+                updates.approvedBy = {
+                    uid: user?.id || user?.uid,
+                    email: user?.email,
+                    name: user?.displayName || user?.name || user?.email?.split('@')[0]
+                }
                 updates.approvedAt = new Date().toISOString()
                 toast.success("Approval process bypassed (Auto-approved)")
             }
@@ -321,7 +325,11 @@ export function useProjectData() {
                 const project = projects.find(p => p.id === projectId)
                 if (canBypassApproval(project)) {
                     changes.status = 'approved'
-                    changes.approvedBy = user?.id || user?.uid
+                    changes.approvedBy = {
+                        uid: user?.id || user?.uid,
+                        email: user?.email,
+                        name: user?.displayName || user?.name || user?.email?.split('@')[0]
+                    }
                     changes.approvedAt = new Date().toISOString()
                 }
             }
@@ -535,6 +543,11 @@ export function useProjectData() {
         const projectData = {
             ...projectMeta,
             ownerId: user?.id, // Pass current user as owner
+            createdBy: {
+                uid: user?.id || user?.uid,
+                email: user?.email,
+                name: user?.displayName || user?.name || user?.email?.split('@')[0]
+            },
             status: 'draft',
             progress: 0,
             translatedRows: 0,
