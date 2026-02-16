@@ -63,7 +63,7 @@ export default function Approvals() {
 
         const loadProjectReviewRows = async () => {
             const allReviewRows = []
-            // console.log('🔄 [Approvals] Loading. Projects:', projects.length)
+
 
             for (const project of projects) {
                 // Determine target languages for this project to check columns
@@ -451,7 +451,7 @@ export default function Approvals() {
                 // If assigned to other, HIDE content as per request
                 if (assignedTo && assignedTo !== user?.id && role !== 'admin') {
                     return <div className="h-full flex items-center"><span className="text-slate-200 text-xs italic">Assigned to other</span></div>
-                    // return <span className="text-slate-300 text-xs">—</span>
+
                 }
 
                 // If language not allowed

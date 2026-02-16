@@ -11,6 +11,7 @@ import { Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { GlossaryHighlighter } from "@/components/ui/GlossaryHighlighter"
 import { COLORS, PageContainer, Card } from "@/components/ui/shared"
+import { handleTranslationError } from "@/lib/utils"
 import { PageHeader } from "@/components/ui/common"
 
 const LANGUAGES = [
@@ -76,11 +77,7 @@ export default function QuickCheck() {
                 toast.error('Translation failed')
             }
         } catch (error) {
-            if (error.message === 'API_NOT_CONFIGURED') {
-                toast.error('API key not configured. Check settings.')
-            } else {
-                toast.error('Translation failed. Please try again.')
-            }
+            handleTranslationError(error)
         } finally {
             setIsTranslating(false)
         }

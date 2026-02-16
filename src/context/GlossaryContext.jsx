@@ -87,8 +87,7 @@ export function GlossaryProvider({ children }) {
 
             // DEBUG: Check translations keys if still empty
             if (firestoreTerms.length > 0) {
-                // const tx = firestoreTerms[0].translations || {}
-                // console.log('DEBUG: Translations Keys:', Object.keys(tx).join(", "))
+
             }
 
         } catch (error) {

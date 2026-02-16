@@ -510,7 +510,7 @@ export function AppSidebar({ ...props }) {
       if (row.status !== 'review') return false
 
       // Admins see everything
-      // if (user?.role === 'admin') return true // Optional: if admins should see all. Usually yes.
+
 
       const targetLangs = project.targetLanguages || ['my', 'zh']
       const myLanguages = user?.languages || []

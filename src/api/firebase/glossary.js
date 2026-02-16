@@ -95,8 +95,15 @@ export async function createGlossaryTerms(termsArray) {
 export async function updateGlossaryTerm(id, updates) {
     try {
         const docRef = doc(db, TERMS_COLLECTION, id);
+
+        // Remove undefined fields to prevent Firestore errors
+        const safeUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+            if (value !== undefined) acc[key] = value;
+            return acc;
+        }, {});
+
         await updateDoc(docRef, {
-            ...updates,
+            ...safeUpdates,
             updatedAt: serverTimestamp(),
             version: increment(1)
         });

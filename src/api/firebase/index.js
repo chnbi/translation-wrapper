@@ -15,9 +15,9 @@ export {
     getPageRows,
     addPageRows,
     updatePageRow,
-    getProjectRows, // Legacy
-    addProjectRows, // Legacy
-    updateProjectRow, // Legacy
+    getProjectRows,
+    addProjectRows,
+    updateProjectRow,
     updateProjectRows,
     deletePageRows,
     deleteProjectRows,
@@ -51,8 +51,7 @@ export {
 // Audit Trail operations
 export {
     logAction,
-    getEntityHistory,
-    getProjectActivity,
+
     getAllAuditLogs,
     formatAction,
     formatRelativeTime,
@@ -68,14 +67,14 @@ export {
     updateUserRole,
     updateUserLanguages,
     deleteUser,
-    getRoles
+
 } from './roles';
 
 // API Key Management
 export {
     getUserApiKeys,
     saveUserApiKeys,
-    clearApiKeyCache,
+
     getEffectiveApiKey
 } from './apiKeys';
 

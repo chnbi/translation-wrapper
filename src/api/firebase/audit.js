@@ -69,50 +69,7 @@ export async function logAction(user, action, entityType, entityId, options = {}
     }
 }
 
-/**
- * Get audit logs for a specific entity
- */
-export async function getEntityHistory(entityType, entityId, maxResults = 50) {
-    try {
-        // Limited queries for now
-        const q = query(
-            collection(db, COLLECTION),
-            where('entityType', '==', entityType),
-            where('entityId', '==', entityId),
-            orderBy('createdAt', 'desc')
-            // limit(maxResults) // Add limit if needed
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().createdAt?.toDate() || new Date()
-        }));
-    } catch (error) {
-        return [];
-    }
-}
 
-/**
- * Get recent activity for a project
- */
-export async function getProjectActivity(projectId, maxResults = 20) {
-    try {
-        const q = query(
-            collection(db, COLLECTION),
-            where('projectId', '==', projectId),
-            orderBy('createdAt', 'desc')
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().createdAt?.toDate() || new Date()
-        }));
-    } catch (error) {
-        return [];
-    }
-}
 
 /**
  * Get all audit logs (admin only)

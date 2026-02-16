@@ -66,13 +66,7 @@ export async function saveUserApiKeys(userId, keys) {
     }
 }
 
-/**
- * Clear cached API keys (call on logout)
- */
-export function clearApiKeyCache() {
-    cachedKeys = null;
-    cachedUserId = null;
-}
+
 
 /**
  * Get the effective API key for a provider

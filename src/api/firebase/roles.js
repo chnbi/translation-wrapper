@@ -119,11 +119,4 @@ export async function deleteUser(userId) {
     }
 }
 
-export async function getRoles() {
-    // Return hardcoded roles or fetch from a 'roles' collection if you create one
-    // For now, mirroring PB behavior hardcoded return if fail
-    return [
-        { id: 'manager', name: 'manager', label: 'Manager' },
-        { id: 'editor', name: 'editor', label: 'Editor' }
-    ];
-}
+
