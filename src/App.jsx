@@ -61,7 +61,8 @@ function App() {
     const authContextValue = useMemo(() => ({
         user: devUser || DEFAULT_DEV_USER,
         role: currentRole,
-        isManager: currentRole === ROLES.MANAGER,
+        isManager: currentRole === ROLES.MANAGER || currentRole === ROLES.ADMIN,
+        isAdmin: currentRole === ROLES.ADMIN,
         isEditor: currentRole === ROLES.EDITOR,
         canDo: (action) => setCurrentRole(ROLES.MANAGER), // Mock permissions
         setRole: setCurrentRole,

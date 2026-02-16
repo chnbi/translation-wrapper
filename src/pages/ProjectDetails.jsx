@@ -1062,7 +1062,7 @@ export default function ProjectView({ projectId }) {
             render: (row) => (
                 <PromptCategoryDropdown
                     currentPromptId={row.promptId}
-                    templates={templates}
+                    templates={templates.filter(t => isManager || t.status === 'published' || t.isDefault)}
                     onSelect={(promptId) => {
                         updateProjectRow(id, row.id, { promptId })
                     }}
@@ -1156,7 +1156,7 @@ export default function ProjectView({ projectId }) {
                         <>
                             <PromptCategoryDropdown
                                 currentPromptId={selectedPromptId}
-                                templates={templates.filter(t => t.status !== 'draft')}
+                                templates={templates.filter(t => isManager || t.status === 'published' || t.isDefault)}
                                 onSelect={setSelectedPromptId}
                             />
                             <StatusFilterDropdown

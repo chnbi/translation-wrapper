@@ -184,6 +184,30 @@ export default function Glossary() {
         }
     }
 
+    // Approve term (Manager only)
+    const handleApproveTerm = async (id) => {
+        await updateTerm(id, { status: 'approved' })
+        toast.success('Term approved!')
+    }
+
+    // Approve selected terms (Manager only)
+    const handleApproveSelected = async () => {
+        let successCount = 0
+        for (const id of selectedIds) {
+            const term = terms.find(t => t.id === id)
+            // Only approve if not already approved
+            if (term && term.status !== 'approved' && term.status !== 'published') {
+                await updateTerm(id, { status: 'approved' })
+                successCount++
+            }
+        }
+        if (successCount > 0) {
+            toast.success(`Approved ${successCount} terms`)
+        } else {
+            toast.info("No eligible terms to approve")
+        }
+        setSelectedIds([])
+    }
 
 
     // Filter and sort logic

@@ -163,7 +163,8 @@ export function AuthProvider({ children }) {
         signOut,
         resetPassword,
         canDo,
-        isManager: userRole === ROLES.MANAGER,
+        isManager: userRole === ROLES.MANAGER || userRole === ROLES.ADMIN,
+        isAdmin: userRole === ROLES.ADMIN,
         isEditor: userRole === ROLES.EDITOR,
         // Expose permission utilities
         getRoleLabel,

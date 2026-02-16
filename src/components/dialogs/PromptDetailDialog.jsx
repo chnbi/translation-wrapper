@@ -12,6 +12,7 @@ import {
     IconButton,
     COLORS,
 } from "@/components/ui/shared"
+import { useAuth } from "@/context/DevAuthContext"
 
 // Available tag options
 const TAG_OPTIONS = [
@@ -184,6 +185,7 @@ function TagsDropdown({ selectedTags, onChange, disabled }) {
 
 
 export default function PromptDetailDialog({ open, onOpenChange, initialData, onSave, viewOnly = false }) {
+    const { isManager } = useAuth()
     const [isEditing, setIsEditing] = useState(!initialData) // Start in edit mode for new, view mode for existing
     const [formData, setFormData] = useState({
         name: '',
@@ -387,33 +389,37 @@ export default function PromptDetailDialog({ open, onOpenChange, initialData, on
                         )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {/* Status Dropdown */}
-                        <select
-                            value={formData.status || 'draft'}
-                            onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                            style={{
-                                padding: '10px 36px 10px 16px',
-                                fontSize: '14px',
-                                fontWeight: 500,
-                                borderRadius: '12px',
-                                border: '1px solid hsl(220, 13%, 91%)',
-                                backgroundColor: 'hsl(220, 14%, 98%)',
-                                color: 'hsl(222, 47%, 11%)',
-                                cursor: 'pointer',
-                                appearance: 'none',
-                                outline: 'none',
-                                minWidth: '100px',
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundPosition: 'right 12px center',
-                                transition: 'border-color 0.15s, box-shadow 0.15s'
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = 'hsl(340, 82%, 59%)'}
-                            onBlur={(e) => e.target.style.borderColor = 'hsl(220, 13%, 91%)'}
-                        >
-                            <option value="draft">Draft</option>
-                            <option value="published">Published</option>
-                        </select>
+                        {/* Status Dropdown - Restricted for Editors */}
+                        <div className="relative">
+                            <select
+                                value={formData.status || 'draft'}
+                                onChange={e => isManager && setFormData(prev => ({ ...prev, status: e.target.value }))}
+                                disabled={!isManager}
+                                style={{
+                                    padding: '10px 36px 10px 16px',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    borderRadius: '12px',
+                                    border: '1px solid hsl(220, 13%, 91%)',
+                                    backgroundColor: isManager ? 'hsl(220, 14%, 98%)' : 'hsl(220, 14%, 96%)',
+                                    color: 'hsl(222, 47%, 11%)',
+                                    cursor: isManager ? 'pointer' : 'not-allowed',
+                                    appearance: 'none',
+                                    outline: 'none',
+                                    minWidth: '100px',
+                                    backgroundImage: isManager ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")` : 'none',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 12px center',
+                                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                                    opacity: 1
+                                }}
+                                onFocus={(e) => isManager && (e.target.style.borderColor = 'hsl(340, 82%, 59%)')}
+                                onBlur={(e) => e.target.style.borderColor = 'hsl(220, 13%, 91%)'}
+                            >
+                                <option value="draft">Draft</option>
+                                <option value="published">Published {(!isManager && formData.status === 'published') ? '(Active)' : ''}</option>
+                            </select>
+                        </div>
                         <IconButton onClick={() => onOpenChange(false)}>
                             <X style={{ width: '18px', height: '18px' }} />
                         </IconButton>
